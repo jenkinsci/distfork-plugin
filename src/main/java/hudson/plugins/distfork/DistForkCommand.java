@@ -76,7 +76,7 @@ public class DistForkCommand extends CLICommand {
                 try {
                     Launcher launcher = Computer.currentComputer().getNode().createLauncher(listener);
                     exitCode[0] = launcher.launch(commands.toArray(new String[commands.size()]),
-                            new String[0], stdout, null).join();
+                            new String[0], stdin, stdout).join();
                 } catch (Exception e) {
                     e.printStackTrace(listener.error("Failed to execute a process"));
                     exitCode[0] = -1;
