@@ -69,6 +69,10 @@ public class DistForkTask implements Task {
             public void run() {
                 runnable.run();
             }
+
+            public String toString() {
+                return displayName;
+            }
         };
     }
 

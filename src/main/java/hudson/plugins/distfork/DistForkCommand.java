@@ -8,6 +8,7 @@ import hudson.model.Computer;
 import hudson.model.Hudson;
 import hudson.model.Label;
 import hudson.model.Queue;
+import hudson.model.Queue.Executable;
 import hudson.util.StreamTaskListener;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
@@ -15,6 +16,9 @@ import org.kohsuke.args4j.Option;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CancellationException;
 
 /**
  * @author Kohsuke Kawaguchi
@@ -80,12 +84,14 @@ public class DistForkCommand extends CLICommand {
             }
         });
 
+        // run and wait for the completion
         Queue q = h.getQueue();
-        q.add(t,0);
-
-        // TODO: this is stupid
-        while(q.contains(t)) {
-            Thread.sleep(1000);
+        Future<Executable> f = q.schedule(t, 0).getFuture();
+        try {
+            f.get();
+        } catch (CancellationException e) {
+            stderr.println("Task cancelled");
+            return -1;
         }
 
         return exitCode[0];
