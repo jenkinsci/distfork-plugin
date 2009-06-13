@@ -1,12 +1,15 @@
 package hudson.plugins.distfork;
 
+import hudson.Extension;
+import hudson.FilePath;
+import hudson.FilePath.TarCompression;
 import hudson.Launcher;
 import hudson.Util;
-import hudson.Extension;
 import hudson.cli.CLICommand;
 import hudson.model.Computer;
 import hudson.model.Hudson;
 import hudson.model.Label;
+import hudson.model.Node;
 import hudson.model.Queue;
 import hudson.model.Queue.Executable;
 import hudson.util.StreamTaskListener;
@@ -14,11 +17,11 @@ import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.Option;
 
+import java.io.BufferedInputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Future;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.Future;
 
 /**
  * @author Kohsuke Kawaguchi
@@ -37,6 +40,9 @@ public class DistForkCommand extends CLICommand {
 
     @Argument(handler=RestOfArgumentsHandler.class)
     public List<String> commands = new ArrayList<String>();
+
+    @Option(name="-f",usage="Zip/tgz file to be extracted into the target remote machine before execution of the command")
+    public String zip;
 
 
     public String getShortDescription() {
@@ -71,12 +77,28 @@ public class DistForkCommand extends CLICommand {
         DistForkTask t = new DistForkTask(l, name, duration, new Runnable() {
             public void run() {
                 // TODO: need a way to set environment variables
-                // need to be able to control current directory?
                 StreamTaskListener listener = new StreamTaskListener(stdout);
+                FilePath workDir = null;
                 try {
-                    Launcher launcher = Computer.currentComputer().getNode().createLauncher(listener);
-                    exitCode[0] = launcher.launch(commands.toArray(new String[commands.size()]),
-                            new String[0], stdin, stdout).join();
+                    Node n = Computer.currentComputer().getNode();
+
+                    if(zip!=null) {
+                        workDir = n.getRootPath().createTempDir("distfork",null);
+                        BufferedInputStream in = new BufferedInputStream(new FilePath(channel, zip).read());
+                        if(zip.endsWith(".zip"))
+                            workDir.unzipFrom(in);
+                        else
+                            workDir.untarFrom(in, TarCompression.GZIP);
+                    }
+
+                    try {
+                        Launcher launcher = n.createLauncher(listener);
+                        exitCode[0] = launcher.launch(commands.toArray(new String[commands.size()]),
+                                new String[0], stdin, stdout, workDir).join();
+                    } finally {
+                        if(workDir!=null)
+                            workDir.deleteRecursive();
+                    }
                 } catch (Exception e) {
                     e.printStackTrace(listener.error("Failed to execute a process"));
                     exitCode[0] = -1;
