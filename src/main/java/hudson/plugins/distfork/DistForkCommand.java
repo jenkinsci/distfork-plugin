@@ -100,7 +100,7 @@ public class DistForkCommand extends CLICommand {
                     }
 
                     for (Entry<String, String> e : files.entrySet())
-                        new FilePath(channel,e.getValue()).copyTo(workDir.child(e.getKey()));
+                        new FilePath(channel,e.getValue()).copyToWithPermission(workDir.child(e.getKey()));
 
                     try {
                         Launcher launcher = n.createLauncher(listener);
