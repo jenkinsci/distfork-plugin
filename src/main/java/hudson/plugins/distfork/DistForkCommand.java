@@ -20,6 +20,9 @@ import org.kohsuke.args4j.Option;
 import java.io.BufferedInputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Map.Entry;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 
@@ -41,8 +44,11 @@ public class DistForkCommand extends CLICommand {
     @Argument(handler=RestOfArgumentsHandler.class)
     public List<String> commands = new ArrayList<String>();
 
-    @Option(name="-f",usage="Zip/tgz file to be extracted into the target remote machine before execution of the command")
+    @Option(name="-z",usage="Zip/tgz file to be extracted into the target remote machine before execution of the command")
     public String zip;
+
+    @Option(name="-f",usage="Local files to be copied to remote locations",metaVar="REMOTE=LOCAL")
+    public Map<String,String> files = new HashMap<String,String>();
 
 
     public String getShortDescription() {
@@ -82,14 +88,19 @@ public class DistForkCommand extends CLICommand {
                 try {
                     Node n = Computer.currentComputer().getNode();
 
-                    if(zip!=null) {
+                    if(zip!=null || !files.isEmpty())
                         workDir = n.getRootPath().createTempDir("distfork",null);
+
+                    if(zip!=null) {
                         BufferedInputStream in = new BufferedInputStream(new FilePath(channel, zip).read());
                         if(zip.endsWith(".zip"))
                             workDir.unzipFrom(in);
                         else
                             workDir.untarFrom(in, TarCompression.GZIP);
                     }
+
+                    for (Entry<String, String> e : files.entrySet())
+                        new FilePath(channel,e.getValue()).copyTo(workDir.child(e.getKey()));
 
                     try {
                         Launcher launcher = n.createLauncher(listener);
