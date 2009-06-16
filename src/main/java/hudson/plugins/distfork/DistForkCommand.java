@@ -113,8 +113,8 @@ public class DistForkCommand extends CLICommand {
 
                     try {
                         Launcher launcher = n.createLauncher(listener);
-                        exitCode[0] = launcher.launch(commands.toArray(new String[commands.size()]),
-                                new String[0], stdin, stdout, workDir).join();
+                        exitCode[0] = launcher.launch().cmds(commands)
+                                .stdin(stdin).stdout(stdout).stderr(stderr).pwd(workDir).join();
                     } finally {
                         if(workDir!=null)
                             workDir.deleteRecursive();
