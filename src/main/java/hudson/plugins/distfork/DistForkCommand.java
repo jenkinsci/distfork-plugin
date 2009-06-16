@@ -72,10 +72,19 @@ public class DistForkCommand extends CLICommand {
 
         // defaults to the command names
         if (name==null) {
-            if(commands.size()>2)
-                name = Util.join(commands.subList(0,2)," ")+" ...";
-            else
-                name = Util.join(commands," ");
+            boolean dots=false;
+            if(commands.size()>3) {
+                name = Util.join(commands.subList(0,3)," ");
+                dots=true;
+            }
+
+            name = Util.join(commands," ");
+            if(name.length()>80) {
+                name=name.substring(0,80);
+                dots=true;
+            }
+            
+            if(dots)    name+=" ...";
         }
 
         final int[] exitCode = new int[]{-1};
@@ -110,6 +119,9 @@ public class DistForkCommand extends CLICommand {
                         if(workDir!=null)
                             workDir.deleteRecursive();
                     }
+                } catch (InterruptedException e) {
+                    listener.error("Aborted");
+                    exitCode[0] = -1;
                 } catch (Exception e) {
                     e.printStackTrace(listener.error("Failed to execute a process"));
                     exitCode[0] = -1;
@@ -125,6 +137,10 @@ public class DistForkCommand extends CLICommand {
         } catch (CancellationException e) {
             stderr.println("Task cancelled");
             return -1;
+        } catch (InterruptedException e) {
+            // if the command itself is aborted, cancel the execution
+            f.cancel(true);
+            throw e;
         }
 
         return exitCode[0];
