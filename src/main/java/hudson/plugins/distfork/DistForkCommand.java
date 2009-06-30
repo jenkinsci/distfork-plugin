@@ -18,6 +18,8 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.Option;
 
 import java.io.BufferedInputStream;
+import java.io.OutputStream;
+import java.io.BufferedOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -44,11 +46,20 @@ public class DistForkCommand extends CLICommand {
     @Argument(handler=RestOfArgumentsHandler.class)
     public List<String> commands = new ArrayList<String>();
 
-    @Option(name="-z",usage="Zip/tgz file to be extracted into the target remote machine before execution of the command")
+    @Option(name="-z",metaVar="FILE",
+            usage="Zip/tgz file to be extracted into the target remote machine before execution of the command")
     public String zip;
 
-    @Option(name="-f",usage="Local files to be copied to remote locations",metaVar="REMOTE=LOCAL")
+    @Option(name="-Z",metaVar="FILE",
+            usage="Bring back the newly added/updated files in the target remote machine after the end of the command " +
+                  "by creating a zip/tgz bundle and place this in the local file system by this name.")
+    public String returnZip;
+
+    @Option(name="-f",usage="Local files to be copied to remote locations before the exeuction of a task",metaVar="REMOTE=LOCAL")
     public Map<String,String> files = new HashMap<String,String>();
+
+    @Option(name="-F",usage="Remote files to be copied back to local locations after the execution of a task",metaVar="LOCAL=REMOTE")
+    public Map<String,String> returnFiles = new HashMap<String,String>();
 
 
     public String getShortDescription() {
@@ -115,6 +126,28 @@ public class DistForkCommand extends CLICommand {
                         Launcher launcher = n.createLauncher(listener);
                         exitCode[0] = launcher.launch().cmds(commands)
                                 .stdin(stdin).stdout(stdout).stderr(stderr).pwd(workDir).join();
+
+                        if (!returnFiles.isEmpty() || returnZip!=null) {
+                            stderr.println("Copying back files");
+                            for (Entry<String, String> e : returnFiles.entrySet())
+                                workDir.child(e.getValue()).copyToWithPermission(new FilePath(channel,e.getKey()));
+
+                            // TODO: support timestamp based test
+                            if (returnZip!=null) {
+                                FilePath zip = new FilePath(channel,returnZip);
+                                if(returnZip.endsWith(".zip")) {
+                                    OutputStream os = new BufferedOutputStream(zip.write());
+                                    try {
+                                        workDir.createZipArchive(os);
+                                    } finally {
+                                        os.close();
+                                    }
+                                } else {
+                                    // TODO
+                                    throw new UnsupportedOperationException();
+                                }
+                            }
+                        }
                     } finally {
                         if(workDir!=null)
                             workDir.deleteRecursive();
