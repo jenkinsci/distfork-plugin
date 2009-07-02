@@ -55,7 +55,7 @@ public class DistForkCommand extends CLICommand {
                   "by creating a zip/tgz bundle and place this in the local file system by this name.")
     public String returnZip;
 
-    @Option(name="-e",usage="Sets environment variables",metaVar="REMOTE=LOCAL")
+    @Option(name="-e",usage="Environment variables to set to the launched process",metaVar="NAME=VAL")
     public Map<String,String> envs = new HashMap<String,String>();
 
     @Option(name="-f",usage="Local files to be copied to remote locations before the exeuction of a task",metaVar="REMOTE=LOCAL")
