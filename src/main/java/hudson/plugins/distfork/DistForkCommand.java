@@ -55,6 +55,9 @@ public class DistForkCommand extends CLICommand {
                   "by creating a zip/tgz bundle and place this in the local file system by this name.")
     public String returnZip;
 
+    @Option(name="-e",usage="Sets environment variables",metaVar="REMOTE=LOCAL")
+    public Map<String,String> envs = new HashMap<String,String>();
+
     @Option(name="-f",usage="Local files to be copied to remote locations before the exeuction of a task",metaVar="REMOTE=LOCAL")
     public Map<String,String> files = new HashMap<String,String>();
 
@@ -102,7 +105,6 @@ public class DistForkCommand extends CLICommand {
 
         DistForkTask t = new DistForkTask(l, name, duration, new Runnable() {
             public void run() {
-                // TODO: need a way to set environment variables
                 StreamTaskListener listener = new StreamTaskListener(stdout);
                 FilePath workDir = null;
                 try {
@@ -125,7 +127,7 @@ public class DistForkCommand extends CLICommand {
                     try {
                         Launcher launcher = n.createLauncher(listener);
                         exitCode[0] = launcher.launch().cmds(commands)
-                                .stdin(stdin).stdout(stdout).stderr(stderr).pwd(workDir).join();
+                                .stdin(stdin).stdout(stdout).stderr(stderr).pwd(workDir).envs(envs).join();
 
                         if (!returnFiles.isEmpty() || returnZip!=null) {
                             stderr.println("Copying back files");
