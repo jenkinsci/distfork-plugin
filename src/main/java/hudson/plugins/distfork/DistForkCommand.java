@@ -5,6 +5,8 @@ import hudson.FilePath;
 import hudson.FilePath.TarCompression;
 import hudson.Launcher;
 import hudson.Util;
+import hudson.plugins.distfork.PortForwarder.Connector;
+import hudson.remoting.VirtualChannel;
 import hudson.cli.CLICommand;
 import hudson.model.Computer;
 import hudson.model.Hudson;
@@ -20,6 +22,8 @@ import org.kohsuke.args4j.Option;
 import java.io.BufferedInputStream;
 import java.io.OutputStream;
 import java.io.BufferedOutputStream;
+import java.io.IOException;
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +68,11 @@ public class DistForkCommand extends CLICommand {
     @Option(name="-F",usage="Remote files to be copied back to local locations after the execution of a task",metaVar="LOCAL=REMOTE")
     public Map<String,String> returnFiles = new HashMap<String,String>();
 
+    @Option(name="-L",usage="Local to remote port forwarding",handler=PortForwardingArgumentHandler.class)
+    public List<PortSpec> l2rFowrarding = new ArrayList<PortSpec>();
+
+    @Option(name="-R",usage="Remote to local port forwarding",handler=PortForwardingArgumentHandler.class)
+    public List<PortSpec> r2lFowrarding = new ArrayList<PortSpec>();
 
     public String getShortDescription() {
         return "forks a process on a remote machine and connects to its stdin/stdout";
@@ -106,23 +115,28 @@ public class DistForkCommand extends CLICommand {
         DistForkTask t = new DistForkTask(l, name, duration, new Runnable() {
             public void run() {
                 StreamTaskListener listener = new StreamTaskListener(stdout);
-                FilePath workDir = null;
                 try {
-                    Node n = Computer.currentComputer().getNode();
+                    Computer c = Computer.currentComputer();
+                    Node n = c.getNode();
+                    FilePath workDir = n.getRootPath().createTempDir("distfork",null);
 
-                    if(zip!=null || !files.isEmpty())
-                        workDir = n.getRootPath().createTempDir("distfork",null);
 
-                    if(zip!=null) {
-                        BufferedInputStream in = new BufferedInputStream(new FilePath(channel, zip).read());
-                        if(zip.endsWith(".zip"))
-                            workDir.unzipFrom(in);
-                        else
-                            workDir.untarFrom(in, TarCompression.GZIP);
+                    {// copy over files
+                        if(zip!=null) {
+                            BufferedInputStream in = new BufferedInputStream(new FilePath(channel, zip).read());
+                            if(zip.endsWith(".zip"))
+                                workDir.unzipFrom(in);
+                            else
+                                workDir.untarFrom(in, TarCompression.GZIP);
+                        }
+
+                        for (Entry<String, String> e : files.entrySet())
+                            new FilePath(channel,e.getValue()).copyToWithPermission(workDir.child(e.getKey()));
                     }
 
-                    for (Entry<String, String> e : files.entrySet())
-                        new FilePath(channel,e.getValue()).copyToWithPermission(workDir.child(e.getKey()));
+                    List<Closeable> cleanUpList = new ArrayList<Closeable>();
+                    setUpPortForwarding(l2rFowrarding,channel,c.getChannel(),cleanUpList);
+                    setUpPortForwarding(r2lFowrarding,c.getChannel(),channel,cleanUpList);
 
                     try {
                         Launcher launcher = n.createLauncher(listener);
@@ -151,8 +165,9 @@ public class DistForkCommand extends CLICommand {
                             }
                         }
                     } finally {
-                        if(workDir!=null)
-                            workDir.deleteRecursive();
+                        workDir.deleteRecursive();
+                        for (Closeable cl : cleanUpList)
+                            cl.close();
                     }
                 } catch (InterruptedException e) {
                     listener.error("Aborted");
@@ -160,6 +175,16 @@ public class DistForkCommand extends CLICommand {
                 } catch (Exception e) {
                     e.printStackTrace(listener.error("Failed to execute a process"));
                     exitCode[0] = -1;
+                }
+            }
+
+            /**
+             * Sets up port-forwarding.
+             */
+            private void setUpPortForwarding(List<PortSpec> fowrarding, VirtualChannel recv, VirtualChannel send, List<Closeable> cleanUpList) throws IOException, InterruptedException {
+                for (PortSpec spec : fowrarding) {
+                    Connector con = Connector.create(send, spec.forwardingHost, spec.forwardingPort);
+                    cleanUpList.add(PortForwarder.create(recv,spec.receivingPort, con));
                 }
             }
         });

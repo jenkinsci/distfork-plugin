@@ -36,6 +36,6 @@
   </dependencies>
 
   <properties>
-    <hudson.version>1.313</hudson.version>
+    <hudson.version>1.314</hudson.version>
   </properties>
 </project>
