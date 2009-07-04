@@ -5,8 +5,10 @@ import hudson.FilePath;
 import hudson.FilePath.TarCompression;
 import hudson.Launcher;
 import hudson.Util;
-import hudson.plugins.distfork.PortForwarder.Connector;
 import hudson.remoting.VirtualChannel;
+import hudson.remoting.forward.PortForwarder;
+import hudson.remoting.forward.ForwarderFactory;
+import hudson.remoting.forward.Forwarder;
 import hudson.cli.CLICommand;
 import hudson.model.Computer;
 import hudson.model.Hudson;
@@ -183,8 +185,8 @@ public class DistForkCommand extends CLICommand {
              */
             private void setUpPortForwarding(List<PortSpec> fowrarding, VirtualChannel recv, VirtualChannel send, List<Closeable> cleanUpList) throws IOException, InterruptedException {
                 for (PortSpec spec : fowrarding) {
-                    Connector con = Connector.create(send, spec.forwardingHost, spec.forwardingPort);
-                    cleanUpList.add(PortForwarder.create(recv,spec.receivingPort, con));
+                    Forwarder f = ForwarderFactory.create(send, spec.forwardingHost, spec.forwardingPort);
+                    cleanUpList.add(PortForwarder.create(recv,spec.receivingPort, f));
                 }
             }
         });
