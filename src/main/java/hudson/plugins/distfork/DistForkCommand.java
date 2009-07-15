@@ -6,6 +6,7 @@ import hudson.FilePath.TarCompression;
 import hudson.Launcher;
 import hudson.Util;
 import hudson.remoting.VirtualChannel;
+import hudson.remoting.Callable;
 import hudson.remoting.forward.PortForwarder;
 import hudson.remoting.forward.ForwarderFactory;
 import hudson.remoting.forward.Forwarder;
@@ -141,6 +142,7 @@ public class DistForkCommand extends CLICommand {
                     setUpPortForwarding(r2lFowrarding,c.getChannel(),channel,cleanUpList);
 
                     try {
+                        long startTime = c.getChannel().call(new GetSystemTime());
                         Launcher launcher = n.createLauncher(listener);
                         exitCode[0] = launcher.launch().cmds(commands)
                                 .stdin(stdin).stdout(stdout).stderr(stderr).pwd(workDir).envs(envs).join();
@@ -150,19 +152,16 @@ public class DistForkCommand extends CLICommand {
                             for (Entry<String, String> e : returnFiles.entrySet())
                                 workDir.child(e.getValue()).copyToWithPermission(new FilePath(channel,e.getKey()));
 
-                            // TODO: support timestamp based test
                             if (returnZip!=null) {
-                                FilePath zip = new FilePath(channel,returnZip);
-                                if(returnZip.endsWith(".zip")) {
-                                    OutputStream os = new BufferedOutputStream(zip.write());
-                                    try {
-                                        workDir.createZipArchive(os);
-                                    } finally {
-                                        os.close();
+                                OutputStream os = new BufferedOutputStream(new FilePath(channel,returnZip).write());
+                                try {
+                                    if(returnZip.endsWith(".zip")) {
+                                        workDir.zip(os,new TimestampFilter(startTime));
+                                    } else {
+                                        workDir.tar(TarCompression.GZIP.compress(os),new TimestampFilter(startTime));
                                     }
-                                } else {
-                                    // TODO
-                                    throw new UnsupportedOperationException();
+                                } finally {
+                                    os.close();
                                 }
                             }
                         }
@@ -206,5 +205,16 @@ public class DistForkCommand extends CLICommand {
         }
 
         return exitCode[0];
+    }
+
+    /**
+     * Obtains the system clock.
+     */
+    private static final class GetSystemTime implements Callable<Long,RuntimeException> {
+        public Long call() {
+            return System.currentTimeMillis();
+        }
+
+        private static final long serialVersionUID = 1L;
     }
 }
