@@ -83,7 +83,7 @@ public class DistForkCommand extends CLICommand {
 
     protected int run() throws Exception {
         if(commands.isEmpty())
-            throw new CmdLineException("No commands are specified");
+            throw new CmdLineException(null, "No commands are specified");
 
         Hudson h = Hudson.getInstance();
 
