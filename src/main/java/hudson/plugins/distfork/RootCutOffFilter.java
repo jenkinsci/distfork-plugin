@@ -8,7 +8,10 @@ import java.io.FileFilter;
 import java.io.IOException;
 
 /**
- * Directory scanner that cuts off  
+ * Directory scanner that cuts off the head directory name.
+ *
+ * So where normally we'd see abc/def/ghi in the archive, this would put the same
+ * file in def/ghi. 
  *
  * @author Kohsuke Kawaguchi
 */

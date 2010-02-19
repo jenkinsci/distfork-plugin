@@ -15,7 +15,7 @@ final class TimestampFilter implements FileFilter, Serializable {
     }
 
     public boolean accept(File f) {
-        return f.lastModified()>startTime;
+        return f.lastModified()>=startTime;
     }
 
     private static final long serialVersionUID = 1L;
