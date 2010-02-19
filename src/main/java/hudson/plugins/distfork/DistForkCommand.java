@@ -5,11 +5,6 @@ import hudson.FilePath;
 import hudson.FilePath.TarCompression;
 import hudson.Launcher;
 import hudson.Util;
-import hudson.remoting.VirtualChannel;
-import hudson.remoting.Callable;
-import hudson.remoting.forward.PortForwarder;
-import hudson.remoting.forward.ForwarderFactory;
-import hudson.remoting.forward.Forwarder;
 import hudson.cli.CLICommand;
 import hudson.model.Computer;
 import hudson.model.Hudson;
@@ -17,20 +12,25 @@ import hudson.model.Label;
 import hudson.model.Node;
 import hudson.model.Queue;
 import hudson.model.Queue.Executable;
+import hudson.remoting.Callable;
+import hudson.remoting.VirtualChannel;
+import hudson.remoting.forward.Forwarder;
+import hudson.remoting.forward.ForwarderFactory;
+import hudson.remoting.forward.PortForwarder;
 import hudson.util.StreamTaskListener;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.Option;
 
 import java.io.BufferedInputStream;
-import java.io.OutputStream;
 import java.io.BufferedOutputStream;
-import java.io.IOException;
 import java.io.Closeable;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Map.Entry;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
@@ -65,7 +65,7 @@ public class DistForkCommand extends CLICommand {
     @Option(name="-e",usage="Environment variables to set to the launched process",metaVar="NAME=VAL")
     public Map<String,String> envs = new HashMap<String,String>();
 
-    @Option(name="-f",usage="Local files to be copied to remote locations before the exeuction of a task",metaVar="REMOTE=LOCAL")
+    @Option(name="-f",usage="Local files to be copied to remote locations before the execution of a task",metaVar="REMOTE=LOCAL")
     public Map<String,String> files = new HashMap<String,String>();
 
     @Option(name="-F",usage="Remote files to be copied back to local locations after the execution of a task",metaVar="LOCAL=REMOTE")
@@ -155,10 +155,11 @@ public class DistForkCommand extends CLICommand {
                             if (returnZip!=null) {
                                 OutputStream os = new BufferedOutputStream(new FilePath(channel,returnZip).write());
                                 try {
+                                    RootCutOffFilter scanner = new RootCutOffFilter(new TimestampFilter(startTime));
                                     if(returnZip.endsWith(".zip")) {
-                                        workDir.zip(os,new TimestampFilter(startTime));
+                                        workDir.zip(os,scanner);
                                     } else {
-                                        workDir.tar(TarCompression.GZIP.compress(os),new TimestampFilter(startTime));
+                                        workDir.tar(TarCompression.GZIP.compress(os),scanner);
                                     }
                                 } finally {
                                     os.close();

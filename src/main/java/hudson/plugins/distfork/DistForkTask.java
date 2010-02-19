@@ -7,6 +7,7 @@ import hudson.model.Node;
 import hudson.model.ResourceList;
 import hudson.model.Hudson;
 import hudson.model.AbstractProject;
+import hudson.model.queue.CauseOfBlockage;
 import hudson.security.ACL;
 
 import java.io.IOException;
@@ -99,5 +100,15 @@ public class DistForkTask implements Task {
 
     public ResourceList getResourceList() {
         return new ResourceList();
+    }
+
+    public CauseOfBlockage getCauseOfBlockage() {
+        // not blocked at any time
+        return null;
+    }
+
+    public boolean isConcurrentBuild() {
+        // concurrently buildable
+        return true;
     }
 }
