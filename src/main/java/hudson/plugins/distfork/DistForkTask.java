@@ -8,9 +8,12 @@ import hudson.model.ResourceList;
 import hudson.model.Hudson;
 import hudson.model.AbstractProject;
 import hudson.model.queue.CauseOfBlockage;
+import hudson.model.queue.SubTask;
 import hudson.security.ACL;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  * {@link Task} that represents a distfork work.
@@ -63,7 +66,7 @@ public class DistForkTask implements Task {
 
     public Executable createExecutable() throws IOException {
         return new Executable() {
-            public Task getParent() {
+            public SubTask getParent() {
                 return DistForkTask.this;
             }
 
@@ -71,6 +74,7 @@ public class DistForkTask implements Task {
                 runnable.run();
             }
 
+            @Override
             public String toString() {
                 return displayName;
             }
@@ -110,5 +114,17 @@ public class DistForkTask implements Task {
     public boolean isConcurrentBuild() {
         // concurrently buildable
         return true;
+    }
+
+    public Collection<? extends SubTask> getSubTasks() {
+        return Collections.singleton(this);
+    }
+
+    public Task getOwnerTask() {
+        return this;
+    }
+
+    public Object getSameNodeConstraint() {
+        return null;
     }
 }

@@ -27,6 +27,7 @@ import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -117,7 +118,7 @@ public class DistForkCommand extends CLICommand {
 
         DistForkTask t = new DistForkTask(l, name, duration, new Runnable() {
             public void run() {
-                StreamTaskListener listener = new StreamTaskListener(stdout);
+                StreamTaskListener listener = new StreamTaskListener(stdout, Charset.defaultCharset());
                 try {
                     Computer c = Computer.currentComputer();
                     Node n = c.getNode();
