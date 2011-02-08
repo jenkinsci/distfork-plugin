@@ -74,6 +74,10 @@ public class DistForkTask implements Task {
                 runnable.run();
             }
 
+            public long getEstimatedDuration() {
+                return -1;
+            }
+
             @Override
             public String toString() {
                 return displayName;
