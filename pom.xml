@@ -9,7 +9,7 @@
   <artifactId>distfork</artifactId>
   <version>1.2-SNAPSHOT</version>
   <packaging>hpi</packaging>
-  <name>Hudson Distributed Fork plugin</name>
+  <name>Jenkins Distributed Fork plugin</name>
   <url>http://wiki.jenkins-ci.org/display/JENKINS/DistFork+Plugin</url>
 
   <scm>
