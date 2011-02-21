@@ -7,7 +7,7 @@
   </parent>
 
   <artifactId>distfork</artifactId>
-  <version>1.2</version>
+  <version>1.3-SNAPSHOT</version>
   <packaging>hpi</packaging>
   <name>Jenkins Distributed Fork plugin</name>
   <url>http://wiki.jenkins-ci.org/display/JENKINS/DistFork+Plugin</url>
