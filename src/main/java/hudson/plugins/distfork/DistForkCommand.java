@@ -45,7 +45,7 @@ public class DistForkCommand extends CLICommand {
     @Option(name="-l",usage="Label for controlling where to execute this command")
     public String label;
 
-    @Option(name="-n",usage="Human readable name that describe this command. Used in Hudson's UI.")
+    @Option(name="-n",usage="Human readable name that describe this command. Used in Jenkins' UI.")
     public String name;
 
     @Option(name="-d",usage="Estimated duration of this task in milliseconds, or -1 if unknown")
