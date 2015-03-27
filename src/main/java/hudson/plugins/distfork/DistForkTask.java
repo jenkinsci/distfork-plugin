@@ -10,7 +10,9 @@ import hudson.model.AbstractProject;
 import hudson.model.queue.CauseOfBlockage;
 import hudson.model.queue.SubTask;
 import hudson.security.ACL;
+import org.acegisecurity.Authentication;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -130,5 +132,10 @@ public class DistForkTask implements Task {
 
     public Object getSameNodeConstraint() {
         return null;
+    }
+
+    @Nonnull
+    public Authentication getDefaultAuthentication() {
+        return ACL.SYSTEM;
     }
 }
