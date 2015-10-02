@@ -100,8 +100,7 @@ public class DistForkTask implements Task {
     }
 
     public String getUrl() {
-        // TODO
-        throw new UnsupportedOperationException();
+        return null;
     }
 
     public String getDisplayName() {
