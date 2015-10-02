@@ -77,7 +77,7 @@ public class DistForkTask implements Task {
             }
 
             public long getEstimatedDuration() {
-                return -1;
+                return estimatedDuration;
             }
 
             @Override
