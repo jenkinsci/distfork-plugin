@@ -12,15 +12,17 @@ import hudson.model.Label;
 import hudson.model.Node;
 import hudson.model.Queue;
 import hudson.model.Queue.Executable;
-import hudson.remoting.Callable;
 import hudson.remoting.VirtualChannel;
 import hudson.remoting.forward.Forwarder;
 import hudson.remoting.forward.ForwarderFactory;
 import hudson.remoting.forward.PortForwarder;
 import hudson.util.StreamTaskListener;
+
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.Option;
+
+import jenkins.security.SlaveToMasterCallable;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -212,7 +214,7 @@ public class DistForkCommand extends CLICommand {
     /**
      * Obtains the system clock.
      */
-    private static final class GetSystemTime implements Callable<Long,RuntimeException> {
+    private static final class GetSystemTime extends SlaveToMasterCallable<Long,RuntimeException> {
         public Long call() {
             return System.currentTimeMillis();
         }

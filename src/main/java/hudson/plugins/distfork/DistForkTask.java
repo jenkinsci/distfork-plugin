@@ -1,5 +1,6 @@
 package hudson.plugins.distfork;
 
+import hudson.model.Queue.Item;
 import hudson.model.Queue.Task;
 import hudson.model.Queue.Executable;
 import hudson.model.Label;
@@ -10,9 +11,11 @@ import hudson.model.AbstractProject;
 import hudson.model.queue.CauseOfBlockage;
 import hudson.model.queue.SubTask;
 import hudson.security.ACL;
+
 import org.acegisecurity.Authentication;
 
 import javax.annotation.Nonnull;
+
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -135,6 +138,11 @@ public class DistForkTask implements Task {
 
     @Nonnull
     public Authentication getDefaultAuthentication() {
+        return ACL.SYSTEM;
+    }
+
+    @Override
+    public Authentication getDefaultAuthentication(Item item) {
         return ACL.SYSTEM;
     }
 }
