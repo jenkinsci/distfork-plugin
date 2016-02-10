@@ -124,6 +124,8 @@ public class DistForkCommand extends CLICommand {
                 try {
                     Computer c = Computer.currentComputer();
                     Node n = c.getNode();
+                    String nodeName = n.getNodeName().equals("") ? "master" : n.getNodeName();
+                    listener.getLogger().println("Executing on " + nodeName);
                     FilePath workDir = n.getRootPath().createTempDir("distfork",null);
 
 
