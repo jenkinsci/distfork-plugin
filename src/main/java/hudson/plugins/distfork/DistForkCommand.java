@@ -90,6 +90,9 @@ public class DistForkCommand extends CLICommand {
 
         Hudson h = Hudson.getInstance();
 
+        // only users who have build permission should be allowed to use the dist-fork command
+        h.checkPermission(Computer.BUILD);
+
         Label l = null;
         if (label!=null) {
             l = h.getLabel(label);

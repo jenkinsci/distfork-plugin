@@ -23,19 +23,25 @@
  */
 package hudson.plugins.distfork;
 
-import hudson.cli.CLI;
-import hudson.slaves.DumbSlave;
-
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 
 import org.apache.commons.io.input.NullInputStream;
 import org.junit.Rule;
 import org.junit.Test;
+import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 
-import static org.hamcrest.core.StringContains.containsString;
+import hudson.cli.CLI;
+import hudson.model.Computer;
+import hudson.model.Item;
+import hudson.security.GlobalMatrixAuthorizationStrategy;
+import hudson.security.HudsonPrivateSecurityRealm;
+import hudson.slaves.DumbSlave;
+import jenkins.model.Jenkins;
+
 import static org.hamcrest.core.AllOf.allOf;
+import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.Assert.assertThat;
 
 public class DistForkCommandTest {
@@ -59,6 +65,68 @@ public class DistForkCommandTest {
         assertThat(result, allOf( containsString("Executing on " + slave.getNodeName()), containsString(System.getProperty("user.name") )));
     }
 
+    @Test
+    @Issue("SECURITY-386")
+    public void testAnonymousAccess() throws Exception {
+        // an anoymous user with just Jenkins.READ should not be able to run this command.
+        HudsonPrivateSecurityRealm realm = new HudsonPrivateSecurityRealm(false, false, null);
+        realm.createAccount("alice","alice");
+        realm.createAccount("bob","bob");
+        
+        GlobalMatrixAuthorizationStrategy authz = new GlobalMatrixAuthorizationStrategy();
+        authz.add(Computer.BUILD, "bob");
+        authz.add(Jenkins.READ, "bob");
+        authz.add(Jenkins.READ, Jenkins.ANONYMOUS.getName());
+        jr.jenkins.setSecurityRealm(realm);
+        jr.jenkins.setAuthorizationStrategy(authz);
+        
+        String result = commandAndOutput("dist-fork", "-l", "master", "whoami");
+        assertThat(result, containsString("hudson.security.AccessDeniedException2: anonymous is missing the Slave/Build permission"));
+    }
+
+    @Test
+    @Issue("SECURITY-386")
+    public void testUserWithBuildAccess() throws Exception {
+        // a user with Computer.BUILD should be able to run this command.
+        
+        HudsonPrivateSecurityRealm realm = new HudsonPrivateSecurityRealm(false, false, null);
+        realm.createAccount("alice","alice");
+        realm.createAccount("bob","bob");
+        
+        GlobalMatrixAuthorizationStrategy authz = new GlobalMatrixAuthorizationStrategy();
+        authz.add(Computer.BUILD, "bob");
+        authz.add(Jenkins.READ, "bob");
+        authz.add(Jenkins.READ, Jenkins.ANONYMOUS.getName());
+        jr.jenkins.setSecurityRealm(realm);
+        jr.jenkins.setAuthorizationStrategy(authz);
+        
+        String result = commandAndOutput("dist-fork", "--username=bob", "--password=bob", "-l", "master", "whoami");
+        assertThat(result, allOf( containsString("Executing on master"), containsString(System.getProperty("user.name") )));
+    }
+
+    @Test
+    @Issue("SECURITY-386")
+    public void testUserWithOutBuildAccess() throws Exception {
+        // a user without Computer.BUILD should be able to run this command.
+        
+        HudsonPrivateSecurityRealm realm = new HudsonPrivateSecurityRealm(false, false, null);
+        realm.createAccount("alice","alice");
+        realm.createAccount("bob","bob");
+        
+        GlobalMatrixAuthorizationStrategy authz = new GlobalMatrixAuthorizationStrategy();
+        authz.add(Computer.BUILD, "bob");
+        authz.add(Jenkins.READ, "bob");
+        authz.add(Jenkins.READ, "alice");
+        authz.add(Item.BUILD, "alice");
+        authz.add(Jenkins.READ, Jenkins.ANONYMOUS.getName());
+        jr.jenkins.setSecurityRealm(realm);
+        jr.jenkins.setAuthorizationStrategy(authz);
+        
+        String result = commandAndOutput("dist-fork", "--username=alice", "--password=alice", "-l", "master", "whoami");
+        assertThat(result, containsString("hudson.security.AccessDeniedException2: alice is missing the Slave/Build permission"));
+    }
+
+    
     private String commandAndOutput(String... args) throws Exception {
         CLI cli = new CLI(jr.getURL());
         try {
