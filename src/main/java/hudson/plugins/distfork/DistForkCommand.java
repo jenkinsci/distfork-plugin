@@ -16,12 +16,15 @@ import hudson.remoting.VirtualChannel;
 import hudson.remoting.forward.Forwarder;
 import hudson.remoting.forward.ForwarderFactory;
 import hudson.remoting.forward.PortForwarder;
+import hudson.security.AccessDeniedException2;
+import hudson.slaves.Cloud;
 import hudson.util.StreamTaskListener;
 
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.Option;
 
+import jenkins.model.Jenkins;
 import jenkins.security.SlaveToMasterCallable;
 
 import java.io.BufferedInputStream;
@@ -35,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 
@@ -91,17 +95,41 @@ public class DistForkCommand extends CLICommand {
         Hudson h = Hudson.getInstance();
 
         // only users who have build permission should be allowed to use the dist-fork command
-        h.checkPermission(Computer.BUILD);
+        //h.checkPermission(Computer.BUILD);
 
         Label l = null;
         if (label!=null) {
             l = h.getLabel(label);
             if(l.isEmpty()) {
+                // TODO does this leak information about labels on nodes that some users can not see?
                 stderr.println("No such label: "+label);
                 return -1;
             }
         }
-
+        
+        boolean hasPermission = false;
+        // TODO if the label is not specified then need to check every Computer/Cloud.
+        
+        Set<Node> nodes = l.getNodes();
+        for (Node node : nodes) {
+            if (node.toComputer().hasPermission(Computer.BUILD)) {
+                hasPermission = true;
+                break;
+            }
+        }
+        if (!hasPermission) {
+            Set<Cloud> clouds = l.getClouds();
+            for (Cloud cloud : clouds) {
+                if (cloud.hasPermission(Computer.BUILD)) {
+                    hasPermission = true;
+                    break;
+                }
+            }
+        }
+        if (!hasPermission) {
+            throw new AccessDeniedException2(Jenkins.getAuthentication(),Computer.BUILD); 
+        }
+        
         // defaults to the command names
         if (name==null) {
             boolean dots=false;
