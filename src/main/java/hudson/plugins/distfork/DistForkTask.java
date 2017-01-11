@@ -11,6 +11,7 @@ import hudson.model.AbstractProject;
 import hudson.model.queue.CauseOfBlockage;
 import hudson.model.queue.SubTask;
 import hudson.security.ACL;
+import jenkins.model.Jenkins;
 
 import org.acegisecurity.Authentication;
 
@@ -33,12 +34,14 @@ public class DistForkTask implements Task {
     private final String displayName;
     private final long estimatedDuration;
     private final Runnable runnable;
+    private final Authentication auth;
 
     public DistForkTask(Label label, String displayName, long estimatedDuration, Runnable runnable) {
         this.label = label;
         this.displayName = displayName;
         this.estimatedDuration = estimatedDuration;
         this.runnable = runnable;
+        this.auth = Jenkins.getAuthentication();
     }
 
     public Label getAssignedLabel() {
@@ -138,11 +141,11 @@ public class DistForkTask implements Task {
 
     @Nonnull
     public Authentication getDefaultAuthentication() {
-        return ACL.SYSTEM;
+        return auth;
     }
 
     @Override
     public Authentication getDefaultAuthentication(Item item) {
-        return ACL.SYSTEM;
+        return auth;
     }
 }
