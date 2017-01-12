@@ -66,6 +66,13 @@ public class DistForkCommandTest {
     }
 
     @Test
+    public void testNoLabel() throws Exception {
+        // whoami seems to be in both windows, linux and osx.
+        String result = commandAndOutput("dist-fork", "whoami");
+        assertThat(result, allOf( containsString("Executing on "), containsString(System.getProperty("user.name") )));
+    }
+
+    @Test
     @Issue("SECURITY-386")
     public void testAnonymousAccess() throws Exception {
         // an anoymous user with just Jenkins.READ should not be able to run this command.
