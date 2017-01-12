@@ -16,6 +16,7 @@ import hudson.remoting.VirtualChannel;
 import hudson.remoting.forward.Forwarder;
 import hudson.remoting.forward.ForwarderFactory;
 import hudson.remoting.forward.PortForwarder;
+import hudson.security.AccessControlled;
 import hudson.security.AccessDeniedException2;
 import hudson.slaves.Cloud;
 import hudson.util.StreamTaskListener;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,39 +94,29 @@ public class DistForkCommand extends CLICommand {
         if(commands.isEmpty())
             throw new CmdLineException(null, "No commands are specified");
 
-        Hudson h = Hudson.getInstance();
-
-        // only users who have build permission should be allowed to use the dist-fork command
-        //h.checkPermission(Computer.BUILD);
+        Jenkins j = Jenkins.getInstance();
 
         Label l = null;
         if (label!=null) {
-            l = h.getLabel(label);
+            l = j.getLabel(label);
             if(l.isEmpty()) {
                 // TODO does this leak information about labels on nodes that some users can not see?
                 stderr.println("No such label: "+label);
                 return -1;
             }
+            
         }
-        
+
+        // only users who have build permission should be allowed to use the dist-fork command
+        // whilst the Task itself will be restricted - it would just sit in the queue forever if a user does not have the correct permission
+        // so try to be nice and see that there is at least somewhere where we can build the item...
         boolean hasPermission = false;
-        // TODO if the label is not specified then need to check every Computer/Cloud.
-        
-        Set<Node> nodes = l.getNodes();
-        for (Node node : nodes) {
-            if (node.toComputer().hasPermission(Computer.BUILD)) {
-                hasPermission = true;
-                break;
-            }
+
+        if (l != null) {
+            hasPermission = hasBuildPermission(l.getNodes()) | hasBuildPermission(l.getClouds());
         }
-        if (!hasPermission) {
-            Set<Cloud> clouds = l.getClouds();
-            for (Cloud cloud : clouds) {
-                if (cloud.hasPermission(Computer.BUILD)) {
-                    hasPermission = true;
-                    break;
-                }
-            }
+        else {
+            hasPermission = hasBuildPermission(j.getNodes()) | hasBuildPermission(j.clouds);
         }
         if (!hasPermission) {
             throw new AccessDeniedException2(Jenkins.getAuthentication(),Computer.BUILD); 
@@ -228,7 +220,7 @@ public class DistForkCommand extends CLICommand {
         });
 
         // run and wait for the completion
-        Queue q = h.getQueue();
+        Queue q = j.getQueue();
         Future<Executable> f = q.schedule(t, 0).getFuture();
         try {
             f.get();
@@ -242,6 +234,18 @@ public class DistForkCommand extends CLICommand {
         }
 
         return exitCode[0];
+    }
+
+    /**
+     * Check if the current user has permission to build on the specified accessControlled objects..
+     */
+    private static final boolean hasBuildPermission(Collection<? extends AccessControlled> nodesOrClouds) {
+        for (AccessControlled ac : nodesOrClouds) {
+            if (ac.hasPermission(Computer.BUILD)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
