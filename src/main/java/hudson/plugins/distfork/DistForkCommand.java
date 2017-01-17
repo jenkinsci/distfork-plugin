@@ -16,8 +16,10 @@ import hudson.remoting.VirtualChannel;
 import hudson.remoting.forward.Forwarder;
 import hudson.remoting.forward.ForwarderFactory;
 import hudson.remoting.forward.PortForwarder;
+import hudson.security.ACL;
 import hudson.security.AccessControlled;
 import hudson.security.AccessDeniedException2;
+import hudson.security.Permission;
 import hudson.slaves.Cloud;
 import hudson.util.StreamTaskListener;
 
@@ -36,6 +38,7 @@ import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -113,15 +116,24 @@ public class DistForkCommand extends CLICommand {
         boolean hasPermission = false;
 
         if (l != null) {
-            hasPermission = hasBuildPermission(l.getNodes()) | hasBuildPermission(l.getClouds());
+            hasPermission = hasBuildPermission(l.getNodes()) || hasProvisionPermission(l.getClouds()) || 
+                           (l.getClouds() != null && j.getAuthorizationStrategy().getRootACL().hasPermission(Computer.BUILD));
         }
         else {
-            hasPermission = hasBuildPermission(j.getNodes()) | hasBuildPermission(j.clouds);
+            hasPermission = hasBuildPermission(j.getNodes()) || hasProvisionPermission(j.clouds) || 
+                           (j.clouds != null && j.getAuthorizationStrategy().getRootACL().hasPermission(Computer.BUILD));
+            // l.getNodes() includes the master if this has the specified label
+            // but j.getNodes() does not include the master so check explicitly.
+            if (!hasPermission && j.getNumExecutors() > 0) {
+                hasPermission = j.toComputer().hasPermission(Computer.BUILD); 
+            }
         }
         if (!hasPermission) {
-            throw new AccessDeniedException2(Jenkins.getAuthentication(),Computer.BUILD); 
+            // no nodes or clouds and the user is missing Computer.Build or Cloud.PROVISION
+            // there is no AccessDeniedException2 for multiple permissions - so go with Build...
+            throw new AccessDeniedException2(Jenkins.getAuthentication(),Computer.BUILD);
         }
-        
+
         // defaults to the command names
         if (name==null) {
             boolean dots=false;
@@ -237,11 +249,24 @@ public class DistForkCommand extends CLICommand {
     }
 
     /**
-     * Check if the current user has permission to build on the specified accessControlled objects..
+     * Check if the current user has permission to build on any of the specified Nodes.
      */
-    private static final boolean hasBuildPermission(Collection<? extends AccessControlled> nodesOrClouds) {
-        for (AccessControlled ac : nodesOrClouds) {
-            if (ac.hasPermission(Computer.BUILD)) {
+    private static final boolean hasBuildPermission(Collection<? extends Node> nodes) {
+        for (Node node : nodes) {
+            Computer c = node.toComputer();
+            if (c != null && c.hasPermission(Computer.BUILD)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if the current user has permission to provision on any of the specified clouds.
+     */
+    private static final boolean hasProvisionPermission(Collection<? extends Cloud> clouds) {
+        for (Cloud cloud : clouds) {
+            if (cloud.hasPermission(Cloud.PROVISION)) {
                 return true;
             }
         }

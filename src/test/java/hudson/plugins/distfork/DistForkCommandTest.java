@@ -27,6 +27,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 
 import org.apache.commons.io.input.NullInputStream;
+import org.jenkinci.plugins.mock_slave.MockCloud;
 import org.junit.Rule;
 import org.junit.Test;
 import org.jvnet.hudson.test.Issue;
@@ -35,8 +36,10 @@ import org.jvnet.hudson.test.JenkinsRule;
 import hudson.cli.CLI;
 import hudson.model.Computer;
 import hudson.model.Item;
+import hudson.model.Node.Mode;
 import hudson.security.GlobalMatrixAuthorizationStrategy;
 import hudson.security.HudsonPrivateSecurityRealm;
+import hudson.slaves.Cloud;
 import hudson.slaves.DumbSlave;
 import jenkins.model.Jenkins;
 
@@ -132,8 +135,57 @@ public class DistForkCommandTest {
         String result = commandAndOutput("dist-fork", "--username=alice", "--password=alice", "-l", "master", "whoami");
         assertThat(result, containsString("hudson.security.AccessDeniedException2: alice is missing the Slave/Build permission"));
     }
-
     
+    @Test
+    @Issue("SECURITY-386")
+    public void testUserWithProvisionAccess() throws Exception {
+        // a user without Computer.BUILD should be able to run this command.
+        
+        HudsonPrivateSecurityRealm realm = new HudsonPrivateSecurityRealm(false, false, null);
+        realm.createAccount("alice","alice");
+        realm.createAccount("bob","bob");
+        
+        GlobalMatrixAuthorizationStrategy authz = new GlobalMatrixAuthorizationStrategy();
+        //authz.add(Computer.BUILD, "bob");
+        authz.add(Jenkins.READ, "bob");
+        authz.add(Cloud.PROVISION, "bob");
+        authz.add(Jenkins.READ, "alice");
+        authz.add(Item.BUILD, "alice");
+        authz.add(Jenkins.READ, Jenkins.ANONYMOUS.getName());
+        jr.jenkins.setSecurityRealm(realm);
+        jr.jenkins.setAuthorizationStrategy(authz);
+        
+        jr.jenkins.clouds.add(new MockCloud("Mock Cloud", Mode.NORMAL, 1, "cloud"));
+        
+        String result = commandAndOutput("dist-fork", "--username=bob", "--password=bob", "-l", "cloud", "whoami");
+        assertThat(result, allOf( containsString("Executing on mock-"), containsString(System.getProperty("user.name") )));
+    }
+    
+    @Test
+    @Issue("SECURITY-386")
+    public void testUserWithBuildAccessOnCloud() throws Exception {
+        // a user without Computer.BUILD should be able to run this command.
+        
+        HudsonPrivateSecurityRealm realm = new HudsonPrivateSecurityRealm(false, false, null);
+        realm.createAccount("alice","alice");
+        realm.createAccount("bob","bob");
+        
+        GlobalMatrixAuthorizationStrategy authz = new GlobalMatrixAuthorizationStrategy();
+        authz.add(Computer.BUILD, "bob");
+        authz.add(Jenkins.READ, "bob");
+        //authz.add(Cloud.PROVISION, "bob");
+        authz.add(Jenkins.READ, "alice");
+        authz.add(Item.BUILD, "alice");
+        authz.add(Jenkins.READ, Jenkins.ANONYMOUS.getName());
+        jr.jenkins.setSecurityRealm(realm);
+        jr.jenkins.setAuthorizationStrategy(authz);
+        
+        jr.jenkins.clouds.add(new MockCloud("Mock Cloud", Mode.NORMAL, 1, "cloud"));
+        
+        String result = commandAndOutput("dist-fork", "--username=bob", "--password=bob", "-l", "cloud", "whoami");
+        assertThat(result, allOf( containsString("Executing on mock-"), containsString(System.getProperty("user.name") )));
+    }
+
     private String commandAndOutput(String... args) throws Exception {
         CLI cli = new CLI(jr.getURL());
         try {
