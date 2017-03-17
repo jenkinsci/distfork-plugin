@@ -3,26 +3,32 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>1.609</version>
+    <version>2.24</version>
   </parent>
 
   <artifactId>distfork</artifactId>
-  <version>1.4-SNAPSHOT</version>
+  <version>1.5.1-SNAPSHOT</version>
   <packaging>hpi</packaging>
+
   <name>Jenkins Distributed Fork plugin</name>
+  <description>Turns a Jenkins cluster into a general purpose batch job execution environment through an SSH-like CLI.
+               This plugin adds a new command 'distfork' to Jenkins CLI, which can be used to execute arbitrary command
+               on a agent of your choice. The distfork command is modeled after ssh, but it's Jenkins aware — for example,
+               instead of hardcoding a machine name, you can specify a label to let Jenkins choose a agent.
+               This opens up a Jenkins cluster for doing all kinds of things without requiring a job/build notion.
+  </description>
   <url>http://wiki.jenkins-ci.org/display/JENKINS/DistFork+Plugin</url>
 
+  <properties>
+    <findbugs.failOnError>false</findbugs.failOnError>
+  </properties>
+  
   <scm>
     <connection>scm:git:git://github.com/jenkinsci/distfork-plugin.git</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/distfork-plugin.git</developerConnection>
+    <url>https://github.com/jenkinsci/m2release-plugin/distfork-plugin.git</url>
+    <tag>HEAD</tag>
   </scm>
-
-  <repositories>
-    <repository>
-      <id>repo.jenkins-ci.org</id>
-      <url>http://repo.jenkins-ci.org/public/</url>
-    </repository>
-  </repositories>
 
   <developers>
     <developer>
@@ -46,11 +52,21 @@
     </dependency>
   </dependencies>
 
-    <pluginRepositories>
-        <pluginRepository>
-            <id>repo.jenkins-ci.org</id>
-            <url>http://repo.jenkins-ci.org/public/</url>
-        </pluginRepository>
-    </pluginRepositories>
-</project>  
+  <!-- Jenkins is no longer synced to central so we need to bootstrap -->
+  <repositories>
+    <repository>
+      <id>repo.jenkins-ci.org</id>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <url>http://repo.jenkins-ci.org/public/</url>
+    </repository>
+  </repositories>
+  <pluginRepositories>
+    <pluginRepository>
+      <id>repo.jenkins-ci.org</id>
+      <url>http://repo.jenkins-ci.org/public/</url>
+    </pluginRepository>
+  </pluginRepositories>
 
+</project>

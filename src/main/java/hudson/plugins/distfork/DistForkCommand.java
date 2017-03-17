@@ -189,8 +189,14 @@ public class DistForkCommand extends CLICommand {
 
                         if (!returnFiles.isEmpty() || returnZip!=null) {
                             stderr.println("Copying back files");
-                            for (Entry<String, String> e : returnFiles.entrySet())
-                                workDir.child(e.getValue()).copyToWithPermission(new FilePath(channel,e.getKey()));
+                            for (Entry<String, String> e : returnFiles.entrySet()) {
+                                FilePath tmp = new FilePath(channel, e.getKey() + ".tmp");
+                                FilePath actual = new FilePath(channel, e.getKey());
+                                workDir.child(e.getValue()).copyToWithPermission(tmp);
+                                if (actual.exists())
+                                    actual.delete();
+                                tmp.renameTo(actual);
+                            }
 
                             if (returnZip!=null) {
                                 OutputStream os = new BufferedOutputStream(new FilePath(channel,returnZip).write());
