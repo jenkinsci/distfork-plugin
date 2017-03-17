@@ -20,6 +20,10 @@
   </description>
   <url>http://wiki.jenkins-ci.org/display/JENKINS/DistFork+Plugin</url>
 
+  <properties>
+    <findbugs.failOnError>false</findbugs.failOnError>
+  </properties>
+  
   <scm>
     <connection>scm:git:git://github.com/jenkinsci/distfork-plugin.git</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/distfork-plugin.git</developerConnection>
