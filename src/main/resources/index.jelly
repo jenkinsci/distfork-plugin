@@ -1,3 +1,4 @@
+<?jelly escape-by-default='true'?>
 <div>
   Turns a Jenkins cluster into a general purpose batch job execution environment
   through an SSH-like CLI.
