@@ -23,6 +23,7 @@
  */
 package hudson.plugins.distfork;
 
+import hudson.Launcher;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 
@@ -44,12 +45,12 @@ import hudson.security.GlobalMatrixAuthorizationStrategy;
 import hudson.security.HudsonPrivateSecurityRealm;
 import hudson.slaves.Cloud;
 import hudson.slaves.DumbSlave;
+import hudson.util.StreamTaskListener;
 import java.util.logging.Level;
 import jenkins.model.Jenkins;
-
-import static org.hamcrest.core.AllOf.allOf;
-import static org.hamcrest.core.StringContains.containsString;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.*;
+import static org.junit.Assume.*;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.jvnet.hudson.test.LoggerRule;
@@ -68,27 +69,31 @@ public class DistForkCommandTest {
         System.setProperty("hudson.model.LoadStatistics.clock", "1000");
     }
 
+    private static String whoIAM;
+    @BeforeClass
+    public static void whoAmI() throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        assumeThat(new Launcher.LocalLauncher(StreamTaskListener.fromStderr()).launch().cmds("whoami").stdout(baos).join(), is(0));
+        whoIAM = baos.toString().trim();
+    }
+
     @Test
     public void testRunOnMaster() throws Exception {
-        // whoami seems to be in both windows, linux and osx.
         String result = commandAndOutput("dist-fork", "-l", "master", "whoami");
-        assertThat(result, allOf( containsString("Executing on master"), containsString(System.getProperty("user.name") )));
+        assertThat(result, allOf( containsString("Executing on master"), containsString(whoIAM)));
     }
 
     @Test
     public void testRunOnSlave() throws Exception {
         DumbSlave slave = jr.createOnlineSlave(jr.jenkins.getLabelAtom("slavelabel"));
-
-        // whoami seems to be in both windows, linux and osx.
         String result = commandAndOutput("dist-fork", "-l", "slavelabel", "whoami");
-        assertThat(result, allOf( containsString("Executing on " + slave.getNodeName()), containsString(System.getProperty("user.name") )));
+        assertThat(result, allOf( containsString("Executing on " + slave.getNodeName()), containsString(whoIAM)));
     }
 
     @Test
     public void testNoLabel() throws Exception {
-        // whoami seems to be in both windows, linux and osx.
         String result = commandAndOutput("dist-fork", "whoami");
-        assertThat(result, allOf( containsString("Executing on "), containsString(System.getProperty("user.name") )));
+        assertThat(result, allOf( containsString("Executing on "), containsString(whoIAM)));
     }
 
     @Test
@@ -127,7 +132,7 @@ public class DistForkCommandTest {
         jr.jenkins.setAuthorizationStrategy(authz);
         
         String result = commandAndOutput("dist-fork", "--username=bob", "--password=bob", "-l", "master", "whoami");
-        assertThat(result, allOf( containsString("Executing on master"), containsString(System.getProperty("user.name") )));
+        assertThat(result, allOf( containsString("Executing on master"), containsString(whoIAM)));
     }
 
     @Test
@@ -176,7 +181,7 @@ public class DistForkCommandTest {
         jr.jenkins.clouds.add(new MockCloud("Mock Cloud", Mode.NORMAL, 1, "cloud", true));
         
         String result = commandAndOutput("dist-fork", "--username=bob", "--password=bob", "-l", "cloud", "whoami");
-        assertThat(result, allOf( containsString("Executing on mock-"), containsString(System.getProperty("user.name") )));
+        assertThat(result, allOf( containsString("Executing on mock-"), containsString(whoIAM)));
     }
     
     @Test
@@ -202,7 +207,7 @@ public class DistForkCommandTest {
         jr.jenkins.clouds.add(new MockCloud("Mock Cloud", Mode.NORMAL, 1, "cloud", true));
         
         String result = commandAndOutput("dist-fork", "--username=bob", "--password=bob", "-l", "cloud", "whoami");
-        assertThat(result, allOf( containsString("Executing on mock-"), containsString(System.getProperty("user.name") )));
+        assertThat(result, allOf( containsString("Executing on mock-"), containsString(whoIAM)));
     }
 
     private String commandAndOutput(String... args) throws Exception {
