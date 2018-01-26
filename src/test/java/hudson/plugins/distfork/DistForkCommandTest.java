@@ -39,19 +39,26 @@ import hudson.model.Item;
 import hudson.model.Node.Mode;
 import hudson.model.Queue;
 import hudson.model.User;
+import hudson.plugins.sshslaves.SSHLauncher;
 import hudson.security.AccessDeniedException2;
 import hudson.security.GlobalMatrixAuthorizationStrategy;
 import hudson.security.HudsonPrivateSecurityRealm;
 import hudson.slaves.Cloud;
 import hudson.slaves.DumbSlave;
+import java.io.File;
 import java.util.logging.Level;
 import jenkins.model.Jenkins;
+import org.apache.commons.io.FileUtils;
 
 import static org.hamcrest.core.AllOf.allOf;
 import static org.hamcrest.core.StringContains.containsString;
-import static org.junit.Assert.assertThat;
+import org.jenkinsci.test.acceptance.docker.DockerClassRule;
+import org.jenkinsci.test.acceptance.docker.fixtures.JavaContainer;
+import static org.junit.Assert.*;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Ignore;
+import org.junit.rules.TemporaryFolder;
 import org.jvnet.hudson.test.LoggerRule;
 
 public class DistForkCommandTest {
@@ -61,6 +68,12 @@ public class DistForkCommandTest {
 
     @Rule
     public LoggerRule logging = new LoggerRule();
+
+    @Rule
+    public TemporaryFolder tmp = new TemporaryFolder();
+
+    @ClassRule
+    public static DockerClassRule<JavaContainer> docker = new DockerClassRule<>(JavaContainer.class);
 
     /** JENKINS_24752: otherwise {@link #testUserWithBuildAccessOnCloud} waits a long time */
     @BeforeClass
@@ -210,9 +223,40 @@ public class DistForkCommandTest {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             cli.execute(Arrays.asList(args), new NullInputStream(0), baos, baos);
+            System.err.println(Arrays.toString(args) + " → " + baos);
             return baos.toString();
         } finally {
             cli.close();
         }
     }
+
+    private void registerSlave() throws Exception {
+        JavaContainer c = docker.create();
+        jr.jenkins.addNode(new DumbSlave("docker", "/home/test/slave", new SSHLauncher(c.ipBound(22), c.port(22), "test", "test", "", "")));
+    }
+
+    @Test
+    public void remotingCLINamedFileTransfers() throws Exception {
+        registerSlave();
+        File a = tmp.newFile();
+        FileUtils.write(a, "hello ");
+        File b = tmp.newFile();
+        FileUtils.write(b, "world");
+        File c = tmp.newFile();
+        String result = commandAndOutput("dist-fork", "-l", "docker", "-f", "/home/test/a=" + a, "-f", "/home/test/b=" + b, "-F", c + "=/home/test/c", "sh", "-c", "cat /home/test/a /home/test/b > /home/test/c");
+        assertThat(result, containsString("Executing on docker"));
+        assertEquals("hello world", FileUtils.readFileToString(c));
+    }
+
+    @Test
+    public void plainCLIFileNamedTransfers() throws Exception {
+        // TODO with CommandInvoker, the same should fail
+    }
+
+    @Issue("JENKINS-49205")
+    @Test
+    public void plainCLIStdinFileTransfers() throws Exception {
+        // TODO but when using = it should be possible
+    }
+
 }

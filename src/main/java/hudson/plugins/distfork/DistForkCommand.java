@@ -149,6 +149,8 @@ public class DistForkCommand extends CLICommand {
         final int[] exitCode = new int[]{-1};
 
         DistForkTask t = new DistForkTask(l, name, duration, new Runnable() {
+            @SuppressWarnings("deprecation") // checkChannel only used in -remoting modes
+            @Override
             public void run() {
                 StreamTaskListener listener = new StreamTaskListener(stdout, Charset.defaultCharset());
                 try {
@@ -169,20 +171,21 @@ public class DistForkCommand extends CLICommand {
 
                     {// copy over files
                         if(zip!=null) {
-                            BufferedInputStream in = new BufferedInputStream(new FilePath(channel, zip).read());
+                            BufferedInputStream in = new BufferedInputStream(new FilePath(checkChannel(), zip).read());
                             if(zip.endsWith(".zip"))
                                 workDir.unzipFrom(in);
                             else
                                 workDir.untarFrom(in, TarCompression.GZIP);
                         }
 
-                        for (Entry<String, String> e : files.entrySet())
-                            new FilePath(channel,e.getValue()).copyToWithPermission(workDir.child(e.getKey()));
+                        for (Entry<String, String> e : files.entrySet()) {
+                            new FilePath(checkChannel(), e.getValue()).copyToWithPermission(workDir.child(e.getKey()));
+                        }
                     }
 
                     List<Closeable> cleanUpList = new ArrayList<Closeable>();
-                    setUpPortForwarding(l2rFowrarding,channel,c.getChannel(),cleanUpList);
-                    setUpPortForwarding(r2lFowrarding,c.getChannel(),channel,cleanUpList);
+                    setUpPortForwarding(l2rFowrarding, checkChannel(), c.getChannel(), cleanUpList);
+                    setUpPortForwarding(r2lFowrarding, c.getChannel(), checkChannel(), cleanUpList);
 
                     try {
                         long startTime = c.getChannel().call(new GetSystemTime());
@@ -193,8 +196,8 @@ public class DistForkCommand extends CLICommand {
                         if (!returnFiles.isEmpty() || returnZip!=null) {
                             stderr.println("Copying back files");
                             for (Entry<String, String> e : returnFiles.entrySet()) {
-                                FilePath tmp = new FilePath(channel, e.getKey() + ".tmp");
-                                FilePath actual = new FilePath(channel, e.getKey());
+                                FilePath tmp = new FilePath(checkChannel(), e.getKey() + ".tmp");
+                                FilePath actual = new FilePath(checkChannel(), e.getKey());
                                 workDir.child(e.getValue()).copyToWithPermission(tmp);
                                 if (actual.exists())
                                     actual.delete();
@@ -202,7 +205,7 @@ public class DistForkCommand extends CLICommand {
                             }
 
                             if (returnZip!=null) {
-                                OutputStream os = new BufferedOutputStream(new FilePath(channel,returnZip).write());
+                                OutputStream os = new BufferedOutputStream(new FilePath(checkChannel(), returnZip).write());
                                 try {
                                     RootCutOffFilter scanner = new RootCutOffFilter(new TimestampFilter(startTime));
                                     if(returnZip.endsWith(".zip")) {
