@@ -49,9 +49,14 @@ import hudson.slaves.Cloud;
 import hudson.slaves.DumbSlave;
 import java.io.File;
 import hudson.util.StreamTaskListener;
+import java.io.ByteArrayInputStream;
 import java.util.logging.Level;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 import jenkins.model.Jenkins;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.jenkinsci.test.acceptance.docker.fixtures.JavaContainer;
 import static org.hamcrest.Matchers.*;
 import org.jenkinsci.test.acceptance.docker.DockerRule;
@@ -262,16 +267,65 @@ public class DistForkCommandTest {
         File b = tmp.newFile();
         FileUtils.write(b, "world");
         File c = tmp.newFile();
-        CLICommandInvoker.Result r = new CLICommandInvoker(jr, new DistForkCommand()).invokeWithArgs(
-            "dist-fork", "-l", "docker", "-f", "/home/test/a=" + a, "-f", "/home/test/b=" + b, "-F", c + "=/home/test/c", "sh", "-c", "cat /home/test/a /home/test/b > /home/test/c");
+        CLICommandInvoker.Result r = new CLICommandInvoker(jr, new DistForkCommand()).
+            invokeWithArgs("-l", "docker", "-f", "/home/test/a=" + a, "-f", "/home/test/b=" + b, "-F", c + "=/home/test/c", "sh", "-c", "cat /home/test/a /home/test/b > /home/test/c");
         assertThat(r, CLICommandInvoker.Matcher.failedWith(-1));
         assertThat(r.toString(), r.stderr(), containsString("https://jenkins.io/redirect/cli-command-requires-channel"));
     }
 
     @Issue("JENKINS-49205")
     @Test
-    public void plainCLIStdinFileTransfers() throws Exception {
-        // TODO but when using = it should be possible
+    public void plainCLIStdinFileTransfersMaster() throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            ZipEntry ze = new ZipEntry("a");
+            zos.putNextEntry(ze);
+            zos.write("hello ".getBytes());
+            zos.closeEntry();
+            ze = new ZipEntry("b");
+            zos.putNextEntry(ze);
+            zos.write("world".getBytes());
+            zos.closeEntry();
+        }
+        CLICommandInvoker.Result r = new CLICommandInvoker(jr, new DistForkCommand()).
+            withStdin(new ByteArrayInputStream(baos.toByteArray())).
+            invokeWithArgs("-z", "=zip", "-Z", "=zip", "sh", "-c", "sleep 1; cat a b > c; rm a b");
+        assertThat(r, CLICommandInvoker.Matcher.succeeded());
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(r.stdoutBinary()); ZipInputStream zis = new ZipInputStream(bais)) {
+            ZipEntry ze = zis.getNextEntry();
+            assertNotNull(ze);
+            assertEquals("c", ze.getName());
+            assertEquals("hello world", IOUtils.toString(zis));
+            assertNull(zis.getNextEntry());
+        }
+    }
+
+    @Issue("JENKINS-49205")
+    @Test
+    public void plainCLIStdinFileTransfersSlave() throws Exception {
+        registerSlave();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            ZipEntry ze = new ZipEntry("a");
+            zos.putNextEntry(ze);
+            zos.write("hello ".getBytes());
+            zos.closeEntry();
+            ze = new ZipEntry("b");
+            zos.putNextEntry(ze);
+            zos.write("world".getBytes());
+            zos.closeEntry();
+        }
+        CLICommandInvoker.Result r = new CLICommandInvoker(jr, new DistForkCommand()).
+            withStdin(new ByteArrayInputStream(baos.toByteArray())).
+            invokeWithArgs("-l", "docker", "-z", "=zip", "-Z", "=zip", "sh", "-c", "sleep 1; cat a b > c; rm a b");
+        assertThat(r, CLICommandInvoker.Matcher.succeeded());
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(r.stdoutBinary()); ZipInputStream zis = new ZipInputStream(bais)) {
+            ZipEntry ze = zis.getNextEntry();
+            assertNotNull(ze);
+            assertEquals("c", ze.getName());
+            assertEquals("hello world", IOUtils.toString(zis));
+            assertNull(zis.getNextEntry());
+        }
     }
 
 }
