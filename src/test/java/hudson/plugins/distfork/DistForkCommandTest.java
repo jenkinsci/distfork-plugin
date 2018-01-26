@@ -35,6 +35,7 @@ import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 
 import hudson.cli.CLI;
+import hudson.cli.CLICommandInvoker;
 import hudson.model.Computer;
 import hudson.model.Item;
 import hudson.model.Node.Mode;
@@ -223,21 +224,21 @@ public class DistForkCommandTest {
         assertThat(result, allOf( containsString("Executing on mock-"), containsString(whoIAM)));
     }
 
+    @SuppressWarnings("deprecation") // deliberately testing -remoting
     private String commandAndOutput(String... args) throws Exception {
-        CLI cli = new CLI(jr.getURL());
-        try {
+        try (CLI cli = new CLI(jr.getURL())) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             cli.execute(Arrays.asList(args), new NullInputStream(0), baos, baos);
             System.err.println(Arrays.toString(args) + " → " + baos);
             return baos.toString();
-        } finally {
-            cli.close();
         }
     }
 
     private void registerSlave() throws Exception {
         JavaContainer c = docker.get();
-        jr.jenkins.addNode(new DumbSlave("docker", "/home/test/slave", new SSHLauncher(c.ipBound(22), c.port(22), "test", "test", "", "")));
+        DumbSlave s = new DumbSlave("docker", "/home/test/slave", new SSHLauncher(c.ipBound(22), c.port(22), "test", "test", "", ""));
+        jr.jenkins.addNode(s);
+        jr.waitOnline(s);
     }
 
     @Test
@@ -254,8 +255,17 @@ public class DistForkCommandTest {
     }
 
     @Test
-    public void plainCLIFileNamedTransfers() throws Exception {
-        // TODO with CommandInvoker, the same should fail
+    public void plainCLINamedFileTransfers() throws Exception {
+        registerSlave();
+        File a = tmp.newFile();
+        FileUtils.write(a, "hello ");
+        File b = tmp.newFile();
+        FileUtils.write(b, "world");
+        File c = tmp.newFile();
+        CLICommandInvoker.Result r = new CLICommandInvoker(jr, new DistForkCommand()).invokeWithArgs(
+            "dist-fork", "-l", "docker", "-f", "/home/test/a=" + a, "-f", "/home/test/b=" + b, "-F", c + "=/home/test/c", "sh", "-c", "cat /home/test/a /home/test/b > /home/test/c");
+        assertThat(r, CLICommandInvoker.Matcher.failedWith(-1));
+        assertThat(r.toString(), r.stderr(), containsString("https://jenkins.io/redirect/cli-command-requires-channel"));
     }
 
     @Issue("JENKINS-49205")

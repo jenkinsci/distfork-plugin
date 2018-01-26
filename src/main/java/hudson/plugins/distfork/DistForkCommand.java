@@ -3,6 +3,7 @@ package hudson.plugins.distfork;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.FilePath.TarCompression;
+import hudson.Functions;
 import hudson.Launcher;
 import hudson.Util;
 import hudson.cli.CLICommand;
@@ -31,7 +32,6 @@ import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -152,7 +152,13 @@ public class DistForkCommand extends CLICommand {
             @SuppressWarnings("deprecation") // checkChannel only used in -remoting modes
             @Override
             public void run() {
-                StreamTaskListener listener = new StreamTaskListener(stdout, Charset.defaultCharset());
+                StreamTaskListener listener;
+                try {
+                    listener = new StreamTaskListener(stderr, getClientCharset());
+                } catch (IOException | InterruptedException x) {
+                    Functions.printStackTrace(x, stderr);
+                    return;
+                }
                 try {
                     Computer c = Computer.currentComputer();
                     Node n = c.getNode();
@@ -227,7 +233,7 @@ public class DistForkCommand extends CLICommand {
                     listener.error("Aborted");
                     exitCode[0] = -1;
                 } catch (Exception e) {
-                    e.printStackTrace(listener.error("Failed to execute a process"));
+                    Functions.printStackTrace(e, listener.error("Failed to execute a process"));
                     exitCode[0] = -1;
                 }
             }
