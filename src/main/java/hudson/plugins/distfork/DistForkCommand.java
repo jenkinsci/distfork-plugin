@@ -7,7 +7,6 @@ import hudson.Launcher;
 import hudson.Util;
 import hudson.cli.CLICommand;
 import hudson.model.Computer;
-import hudson.model.Hudson;
 import hudson.model.Label;
 import hudson.model.Node;
 import hudson.model.Queue;
@@ -16,10 +15,7 @@ import hudson.remoting.VirtualChannel;
 import hudson.remoting.forward.Forwarder;
 import hudson.remoting.forward.ForwarderFactory;
 import hudson.remoting.forward.PortForwarder;
-import hudson.security.ACL;
-import hudson.security.AccessControlled;
 import hudson.security.AccessDeniedException2;
-import hudson.security.Permission;
 import hudson.slaves.Cloud;
 import hudson.util.StreamTaskListener;
 
@@ -38,12 +34,10 @@ import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 
@@ -125,7 +119,8 @@ public class DistForkCommand extends CLICommand {
             // l.getNodes() includes the master if this has the specified label
             // but j.getNodes() does not include the master so check explicitly.
             if (!hasPermission && j.getNumExecutors() > 0) {
-                hasPermission = j.toComputer().hasPermission(Computer.BUILD); 
+                Computer c = j.toComputer();
+                hasPermission = c != null && c.hasPermission(Computer.BUILD);
             }
         }
         if (!hasPermission) {
@@ -159,9 +154,17 @@ public class DistForkCommand extends CLICommand {
                 try {
                     Computer c = Computer.currentComputer();
                     Node n = c.getNode();
-                    String nodeName = n.getNodeName().equals("") ? "master" : n.getNodeName();
+                    if (n == null) {
+                        throw new IllegalStateException("missing node " + c.getName());
+                    }
+                    String nodeName = n.getNodeName().isEmpty() ? "master" : n.getNodeName();
                     listener.getLogger().println("Executing on " + nodeName);
-                    FilePath workDir = n.getRootPath().createTempDir("distfork",null);
+                    FilePath root = n.getRootPath();
+                    if (root == null) {
+                        throw new IllegalStateException(nodeName + " seems to be offline");
+                    }
+                    root.mkdirs(); // needed at least for mock-slave
+                    FilePath workDir = root.createTempDir("distfork",null);
 
 
                     {// copy over files
@@ -238,8 +241,11 @@ public class DistForkCommand extends CLICommand {
         });
 
         // run and wait for the completion
-        Queue q = j.getQueue();
-        Future<Executable> f = q.schedule(t, 0).getFuture();
+        Queue.WaitingItem item = j.getQueue().schedule(t, 0);
+        if (item == null) {
+            throw new IllegalStateException("Could not schedule task");
+        }
+        Future<Executable> f = item.getFuture();
         try {
             f.get();
         } catch (CancellationException e) {
@@ -269,6 +275,7 @@ public class DistForkCommand extends CLICommand {
 
     /**
      * Check if the current user has permission to provision on any of the specified clouds.
+     * TODO as of 2.20 this is useless and the task will just hang anyway (see test)
      */
     private static final boolean hasProvisionPermission(Collection<? extends Cloud> clouds) {
         for (Cloud cloud : clouds) {

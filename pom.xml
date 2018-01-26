@@ -3,11 +3,12 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>2.24</version>
+    <version>3.2</version>
+    <relativePath />
   </parent>
 
   <artifactId>distfork</artifactId>
-  <version>1.6.1-SNAPSHOT</version>
+  <version>1.7-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <name>Jenkins Distributed Fork plugin</name>
@@ -17,10 +18,11 @@
                instead of hardcoding a machine name, you can specify a label to let Jenkins choose a agent.
                This opens up a Jenkins cluster for doing all kinds of things without requiring a job/build notion.
   </description>
-  <url>http://wiki.jenkins-ci.org/display/JENKINS/DistFork+Plugin</url>
+  <url>https://wiki.jenkins.io/display/JENKINS/DistFork+Plugin</url>
 
   <properties>
-    <findbugs.failOnError>false</findbugs.failOnError>
+    <jenkins.version>2.60.3</jenkins.version>
+    <java.level>8</java.level>
   </properties>
   
   <scm>
@@ -30,42 +32,31 @@
     <tag>HEAD</tag>
   </scm>
 
-  <developers>
-    <developer>
-      <id>kohsuke</id>
-      <name>Kohsuke Kawaguchi</name>
-    </developer>
-  </developers>
-
   <dependencies>
-    <dependency>
+    <dependency> <!-- TODO switch to MockAuthorizationStrategy -->
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>matrix-auth</artifactId>
-      <version>1.4</version>
+      <version>2.2</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>mock-slave</artifactId>
-      <version>1.6</version>
+      <version>1.11</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
 
-  <!-- Jenkins is no longer synced to central so we need to bootstrap -->
   <repositories>
     <repository>
       <id>repo.jenkins-ci.org</id>
-      <releases>
-        <enabled>true</enabled>
-      </releases>
-      <url>http://repo.jenkins-ci.org/public/</url>
+      <url>https://repo.jenkins-ci.org/public/</url>
     </repository>
   </repositories>
   <pluginRepositories>
     <pluginRepository>
       <id>repo.jenkins-ci.org</id>
-      <url>http://repo.jenkins-ci.org/public/</url>
+      <url>https://repo.jenkins-ci.org/public/</url>
     </pluginRepository>
   </pluginRepositories>
 
