@@ -23,6 +23,7 @@
  */
 package hudson.plugins.distfork;
 
+import hudson.Functions;
 import hudson.Launcher;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
@@ -276,6 +277,7 @@ public class DistForkCommandTest {
     @Issue("JENKINS-49205")
     @Test
     public void plainCLIStdinFileTransfersMaster() throws Exception {
+        assumeFalse("TODO would need to write an equivalent batch script", Functions.isWindows());
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(baos)) {
             ZipEntry ze = new ZipEntry("a");
@@ -289,6 +291,7 @@ public class DistForkCommandTest {
         }
         CLICommandInvoker.Result r = new CLICommandInvoker(jr, new DistForkCommand()).
             withStdin(new ByteArrayInputStream(baos.toByteArray())).
+            // TODO sleep necessary because TimestampFilter otherwise excludes files created immediately at start of process
             invokeWithArgs("-z", "=zip", "-Z", "=zip", "sh", "-c", "sleep 1; cat a b > c; rm a b");
         assertThat(r, CLICommandInvoker.Matcher.succeeded());
         try (ByteArrayInputStream bais = new ByteArrayInputStream(r.stdoutBinary()); ZipInputStream zis = new ZipInputStream(bais)) {
