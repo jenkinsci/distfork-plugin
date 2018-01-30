@@ -23,6 +23,7 @@
   <properties>
     <jenkins.version>2.60.3</jenkins.version>
     <java.level>8</java.level>
+    <jenkins-test-harness.version>2.34</jenkins-test-harness.version>
   </properties>
   
   <scm>
@@ -43,6 +44,18 @@
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>mock-slave</artifactId>
       <version>1.11</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.test</groupId>
+      <artifactId>docker-fixtures</artifactId>
+      <version>1.5</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+    <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>ssh-slaves</artifactId>
+      <version>1.25</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

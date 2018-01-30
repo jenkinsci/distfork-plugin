@@ -3,6 +3,7 @@ package hudson.plugins.distfork;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.FilePath.TarCompression;
+import hudson.Functions;
 import hudson.Launcher;
 import hudson.Util;
 import hudson.cli.CLICommand;
@@ -31,7 +32,6 @@ import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -60,27 +60,29 @@ public class DistForkCommand extends CLICommand {
     public List<String> commands = new ArrayList<String>();
 
     @Option(name="-z",metaVar="FILE",
-            usage="Zip/tgz file to be extracted into the target remote machine before execution of the command")
+            usage="Zip/tgz file to be extracted into the target remote machine before execution of the command; " +
+                  "requires -remoting unless you pass =zip or =tgz in which case stdin is used")
     public String zip;
 
     @Option(name="-Z",metaVar="FILE",
             usage="Bring back the newly added/updated files in the target remote machine after the end of the command " +
-                  "by creating a zip/tgz bundle and place this in the local file system by this name.")
+                  "by creating a zip/tgz bundle and place this in the local file system by this name; " +
+                   "requires -remoting unless you pass =zip or =tgz in which case stdout is used")
     public String returnZip;
 
     @Option(name="-e",usage="Environment variables to set to the launched process",metaVar="NAME=VAL")
     public Map<String,String> envs = new HashMap<String,String>();
 
-    @Option(name="-f",usage="Local files to be copied to remote locations before the execution of a task",metaVar="REMOTE=LOCAL")
+    @Option(name="-f",usage="Local files to be copied to remote locations before the execution of a task; requires -remoting",metaVar="REMOTE=LOCAL")
     public Map<String,String> files = new HashMap<String,String>();
 
-    @Option(name="-F",usage="Remote files to be copied back to local locations after the execution of a task",metaVar="LOCAL=REMOTE")
+    @Option(name="-F",usage="Remote files to be copied back to local locations after the execution of a task; requires -remoting",metaVar="LOCAL=REMOTE")
     public Map<String,String> returnFiles = new HashMap<String,String>();
 
-    @Option(name="-L",usage="Local to remote port forwarding",handler=PortForwardingArgumentHandler.class)
+    @Option(name="-L",usage="Local to remote port forwarding; requires -remoting",handler=PortForwardingArgumentHandler.class)
     public List<PortSpec> l2rFowrarding = new ArrayList<PortSpec>();
 
-    @Option(name="-R",usage="Remote to local port forwarding",handler=PortForwardingArgumentHandler.class)
+    @Option(name="-R",usage="Remote to local port forwarding; requires -remoting",handler=PortForwardingArgumentHandler.class)
     public List<PortSpec> r2lFowrarding = new ArrayList<PortSpec>();
 
     public String getShortDescription() {
@@ -149,8 +151,16 @@ public class DistForkCommand extends CLICommand {
         final int[] exitCode = new int[]{-1};
 
         DistForkTask t = new DistForkTask(l, name, duration, new Runnable() {
+            @SuppressWarnings("deprecation") // checkChannel only used in -remoting modes
+            @Override
             public void run() {
-                StreamTaskListener listener = new StreamTaskListener(stdout, Charset.defaultCharset());
+                StreamTaskListener listener;
+                try {
+                    listener = new StreamTaskListener(stderr, getClientCharset());
+                } catch (IOException | InterruptedException x) {
+                    Functions.printStackTrace(x, stderr);
+                    return;
+                }
                 try {
                     Computer c = Computer.currentComputer();
                     Node n = c.getNode();
@@ -169,20 +179,25 @@ public class DistForkCommand extends CLICommand {
 
                     {// copy over files
                         if(zip!=null) {
-                            BufferedInputStream in = new BufferedInputStream(new FilePath(channel, zip).read());
-                            if(zip.endsWith(".zip"))
+                            BufferedInputStream in = new BufferedInputStream(zip.matches("=(zip|tgz)") ? stdin : new FilePath(checkChannel(), zip).read());
+                            if(zip.endsWith("zip"))
                                 workDir.unzipFrom(in);
                             else
                                 workDir.untarFrom(in, TarCompression.GZIP);
                         }
 
-                        for (Entry<String, String> e : files.entrySet())
-                            new FilePath(channel,e.getValue()).copyToWithPermission(workDir.child(e.getKey()));
+                        for (Entry<String, String> e : files.entrySet()) {
+                            new FilePath(checkChannel(), e.getValue()).copyToWithPermission(workDir.child(e.getKey()));
+                        }
                     }
 
                     List<Closeable> cleanUpList = new ArrayList<Closeable>();
-                    setUpPortForwarding(l2rFowrarding,channel,c.getChannel(),cleanUpList);
-                    setUpPortForwarding(r2lFowrarding,c.getChannel(),channel,cleanUpList);
+                    if (!l2rFowrarding.isEmpty()) {
+                        setUpPortForwarding(l2rFowrarding, checkChannel(), c.getChannel(), cleanUpList);
+                    }
+                    if (!r2lFowrarding.isEmpty()) {
+                        setUpPortForwarding(r2lFowrarding, c.getChannel(), checkChannel(), cleanUpList);
+                    }
 
                     try {
                         long startTime = c.getChannel().call(new GetSystemTime());
@@ -193,8 +208,8 @@ public class DistForkCommand extends CLICommand {
                         if (!returnFiles.isEmpty() || returnZip!=null) {
                             stderr.println("Copying back files");
                             for (Entry<String, String> e : returnFiles.entrySet()) {
-                                FilePath tmp = new FilePath(channel, e.getKey() + ".tmp");
-                                FilePath actual = new FilePath(channel, e.getKey());
+                                FilePath tmp = new FilePath(checkChannel(), e.getKey() + ".tmp");
+                                FilePath actual = new FilePath(checkChannel(), e.getKey());
                                 workDir.child(e.getValue()).copyToWithPermission(tmp);
                                 if (actual.exists())
                                     actual.delete();
@@ -202,16 +217,14 @@ public class DistForkCommand extends CLICommand {
                             }
 
                             if (returnZip!=null) {
-                                OutputStream os = new BufferedOutputStream(new FilePath(channel,returnZip).write());
-                                try {
+                                try (OutputStream os = new BufferedOutputStream(returnZip.matches("=(zip|tgz)") ? stdout : new FilePath(checkChannel(), returnZip).write())) {
                                     RootCutOffFilter scanner = new RootCutOffFilter(new TimestampFilter(startTime));
-                                    if(returnZip.endsWith(".zip")) {
+                                    if(returnZip.endsWith("zip")) {
                                         workDir.zip(os,scanner);
                                     } else {
                                         workDir.tar(TarCompression.GZIP.compress(os),scanner);
                                     }
-                                } finally {
-                                    os.close();
+                                    os.flush();
                                 }
                             }
                         }
@@ -224,7 +237,7 @@ public class DistForkCommand extends CLICommand {
                     listener.error("Aborted");
                     exitCode[0] = -1;
                 } catch (Exception e) {
-                    e.printStackTrace(listener.error("Failed to execute a process"));
+                    Functions.printStackTrace(e, listener.error("Failed to execute a process"));
                     exitCode[0] = -1;
                 }
             }
