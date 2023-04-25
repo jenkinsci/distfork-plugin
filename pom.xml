@@ -3,7 +3,7 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>3.2</version>
+    <version>4.61</version>
     <relativePath />
   </parent>
 
@@ -14,20 +14,18 @@
   <name>Jenkins Distributed Fork plugin</name>
   <description>Turns a Jenkins cluster into a general purpose batch job execution environment through an SSH-like CLI.
                This plugin adds a new command 'distfork' to Jenkins CLI, which can be used to execute arbitrary command
-               on a agent of your choice. The distfork command is modeled after ssh, but it's Jenkins aware — for example,
+               on a agent of your choice. The distfork command is modelled after ssh, but it's Jenkins aware — for example,
                instead of hardcoding a machine name, you can specify a label to let Jenkins choose a agent.
                This opens up a Jenkins cluster for doing all kinds of things without requiring a job/build notion.
   </description>
-  <url>https://wiki.jenkins.io/display/JENKINS/DistFork+Plugin</url>
+  <url>https://plugins.jenkins.io/distfork/</url>
 
   <properties>
-    <jenkins.version>2.60.3</jenkins.version>
-    <java.level>8</java.level>
-    <jenkins-test-harness.version>2.34</jenkins-test-harness.version>
+    <jenkins.version>2.361.4</jenkins.version>
   </properties>
-  
+
   <scm>
-    <connection>scm:git:git://github.com/jenkinsci/distfork-plugin.git</connection>
+    <connection>scm:git:https://github.com/jenkinsci/distfork-plugin.git</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/distfork-plugin.git</developerConnection>
     <url>https://github.com/jenkinsci/distfork-plugin.git</url>
     <tag>HEAD</tag>
@@ -37,25 +35,25 @@
     <dependency> <!-- TODO switch to MockAuthorizationStrategy -->
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>matrix-auth</artifactId>
-      <version>2.2</version>
+      <version>3.1.7</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>mock-slave</artifactId>
-      <version>1.11</version>
+      <version>125.vcfb_5c627d399</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.test</groupId>
       <artifactId>docker-fixtures</artifactId>
-      <version>1.5</version>
+      <version>166.v912b_95083ffe</version>
       <scope>test</scope>
     </dependency>
     <dependency>
     <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>ssh-slaves</artifactId>
-      <version>1.25</version>
+      <version>2.877.v365f5eb_a_b_eec</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
