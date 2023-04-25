@@ -27,8 +27,9 @@ import hudson.Functions;
 import hudson.Launcher;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
-
+import java.util.List;
 import org.apache.commons.io.input.NullInputStream;
+import org.apache.commons.lang.StringUtils;
 import org.jenkinci.plugins.mock_slave.MockCloud;
 import org.junit.Rule;
 import org.junit.Test;
@@ -67,6 +68,11 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.rules.TemporaryFolder;
 import org.jvnet.hudson.test.LoggerRule;
+import com.cloudbees.plugins.credentials.CredentialsScope;
+import com.cloudbees.plugins.credentials.SystemCredentialsProvider;
+import com.cloudbees.plugins.credentials.common.StandardUsernameCredentials;
+import com.cloudbees.plugins.credentials.domains.Domain;
+import com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl;
 
 public class DistForkCommandTest {
 
@@ -99,20 +105,20 @@ public class DistForkCommandTest {
 
     @Test
     public void testRunOnMaster() throws Exception {
-        String result = commandAndOutput("dist-fork", "-l", "master", "whoami");
+        String result = commandAndOutput(null, "-l", "built-in", "whoami");
         assertThat(result, allOf( containsString("Executing on master"), containsString(whoIAM)));
     }
 
     @Test
     public void testRunOnSlave() throws Exception {
         DumbSlave slave = jr.createOnlineSlave(jr.jenkins.getLabelAtom("slavelabel"));
-        String result = commandAndOutput("dist-fork", "-l", "slavelabel", "whoami");
+        String result = commandAndOutput(null, "-l", "slavelabel", "whoami");
         assertThat(result, allOf( containsString("Executing on " + slave.getNodeName()), containsString(whoIAM)));
     }
 
     @Test
     public void testNoLabel() throws Exception {
-        String result = commandAndOutput("dist-fork", "whoami");
+        String result = commandAndOutput(null, "whoami");
         assertThat(result, allOf( containsString("Executing on "), containsString(whoIAM)));
     }
 
@@ -131,7 +137,7 @@ public class DistForkCommandTest {
         jr.jenkins.setSecurityRealm(realm);
         jr.jenkins.setAuthorizationStrategy(authz);
         
-        String result = commandAndOutput("dist-fork", "-l", "master", "whoami");
+        String result = commandAndOutput(null, "-l", "built-in", "whoami");
         assertThat(result, containsString(new AccessDeniedException2(Jenkins.ANONYMOUS, Computer.BUILD).getMessage()));
     }
 
@@ -151,7 +157,7 @@ public class DistForkCommandTest {
         jr.jenkins.setSecurityRealm(realm);
         jr.jenkins.setAuthorizationStrategy(authz);
         
-        String result = commandAndOutput("dist-fork", "--username=bob", "--password=bob", "-l", "master", "whoami");
+        String result = commandAndOutput("bob", "-l", "built-in", "whoami");
         assertThat(result, allOf( containsString("Executing on master"), containsString(whoIAM)));
     }
 
@@ -173,7 +179,7 @@ public class DistForkCommandTest {
         jr.jenkins.setSecurityRealm(realm);
         jr.jenkins.setAuthorizationStrategy(authz);
         
-        String result = commandAndOutput("dist-fork", "--username=alice", "--password=alice", "-l", "master", "whoami");
+        String result = commandAndOutput("alice", "-l", "built-in", "whoami");
         assertThat(result, containsString(new AccessDeniedException2(User.getById("alice", false).impersonate(), Computer.BUILD).getMessage()));
     }
 
@@ -197,10 +203,12 @@ public class DistForkCommandTest {
         authz.add(Jenkins.READ, Jenkins.ANONYMOUS.getName());
         jr.jenkins.setSecurityRealm(realm);
         jr.jenkins.setAuthorizationStrategy(authz);
-        
-        jr.jenkins.clouds.add(new MockCloud("Mock Cloud", Mode.NORMAL, 1, "cloud", true));
-        
-        String result = commandAndOutput("dist-fork", "--username=bob", "--password=bob", "-l", "cloud", "whoami");
+        MockCloud cloud = new MockCloud("");
+        cloud.setLabels("cloud");
+        cloud.setOneShot(true);
+        jr.jenkins.clouds.add(cloud);
+
+        String result = commandAndOutput("bob", "-l", "cloud", "whoami");
         assertThat(result, allOf( containsString("Executing on mock-"), containsString(whoIAM)));
     }
     
@@ -224,54 +232,32 @@ public class DistForkCommandTest {
         jr.jenkins.setSecurityRealm(realm);
         jr.jenkins.setAuthorizationStrategy(authz);
         
-        jr.jenkins.clouds.add(new MockCloud("Mock Cloud", Mode.NORMAL, 1, "cloud", true));
-        
-        String result = commandAndOutput("dist-fork", "--username=bob", "--password=bob", "-l", "cloud", "whoami");
+        MockCloud cloud = new MockCloud("");
+        cloud.setLabels("cloud");
+        cloud.setOneShot(true);
+        jr.jenkins.clouds.add(cloud);
+
+        String result = commandAndOutput("bob", "-l", "cloud", "whoami");
         assertThat(result, allOf( containsString("Executing on mock-"), containsString(whoIAM)));
     }
 
-    @SuppressWarnings("deprecation") // deliberately testing -remoting
-    private String commandAndOutput(String... args) throws Exception {
-        try (CLI cli = new CLI(jr.getURL())) {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            cli.execute(Arrays.asList(args), new NullInputStream(0), baos, baos);
-            System.err.println(Arrays.toString(args) + " → " + baos);
-            return baos.toString();
+    @SuppressWarnings("deprecation")
+    private String commandAndOutput(String user, String... args) throws Exception {
+        CLICommandInvoker cliInvoker = new CLICommandInvoker(jr, "dist-fork");
+        if (user != null) {
+            cliInvoker.asUser(user);
         }
+        CLICommandInvoker.Result result = cliInvoker.invokeWithArgs(args);
+        return StringUtils.defaultString(result.stdout()) + StringUtils.defaultString(result.stderr());
     }
 
     private void registerSlave() throws Exception {
+        StandardUsernameCredentials credentials = new UsernamePasswordCredentialsImpl(CredentialsScope.SYSTEM, "credentialId", "description", "test", "test");
+        SystemCredentialsProvider.getInstance().getDomainCredentialsMap().put(Domain.global(), List.of(credentials));
         JavaContainer c = docker.get();
-        DumbSlave s = new DumbSlave("docker", "/home/test/slave", new SSHLauncher(c.ipBound(22), c.port(22), "test", "test", "", ""));
+        DumbSlave s = new DumbSlave("docker", "/home/test/slave", new SSHLauncher(c.ipBound(22), c.port(22), credentials.getId()));
         jr.jenkins.addNode(s);
         jr.waitOnline(s);
-    }
-
-    @Test
-    public void remotingCLINamedFileTransfers() throws Exception {
-        registerSlave();
-        File a = tmp.newFile();
-        FileUtils.write(a, "hello ");
-        File b = tmp.newFile();
-        FileUtils.write(b, "world");
-        File c = tmp.newFile();
-        String result = commandAndOutput("dist-fork", "-l", "docker", "-f", "/home/test/a=" + a, "-f", "/home/test/b=" + b, "-F", c + "=/home/test/c", "sh", "-c", "cat /home/test/a /home/test/b > /home/test/c");
-        assertThat(result, containsString("Executing on docker"));
-        assertEquals("hello world", FileUtils.readFileToString(c));
-    }
-
-    @Test
-    public void plainCLINamedFileTransfers() throws Exception {
-        registerSlave();
-        File a = tmp.newFile();
-        FileUtils.write(a, "hello ");
-        File b = tmp.newFile();
-        FileUtils.write(b, "world");
-        File c = tmp.newFile();
-        CLICommandInvoker.Result r = new CLICommandInvoker(jr, new DistForkCommand()).
-            invokeWithArgs("-l", "docker", "-f", "/home/test/a=" + a, "-f", "/home/test/b=" + b, "-F", c + "=/home/test/c", "sh", "-c", "cat /home/test/a /home/test/b > /home/test/c");
-        assertThat(r, CLICommandInvoker.Matcher.failedWith(-1));
-        assertThat(r.toString(), r.stderr(), containsString("https://jenkins.io/redirect/cli-command-requires-channel"));
     }
 
     @Issue("JENKINS-49205")

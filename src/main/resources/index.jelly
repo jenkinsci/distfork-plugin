@@ -1,5 +1,8 @@
 <?jelly escape-by-default='true'?>
 <div>
-  Turns a Jenkins cluster into a general purpose batch job execution environment
-  through an SSH-like CLI.
+  Turns a Jenkins cluster into a general purpose batch job execution environment through an SSH-like CLI.
+  This plugin adds a new command 'distfork' to Jenkins CLI, which can be used to execute arbitrary command
+  on a agent of your choice. The distfork command is modelled after ssh, but it's Jenkins aware; for example,
+  instead of hardcoding a machine name, you can specify a label to let Jenkins choose a agent.
+  This opens up a Jenkins cluster for doing all kinds of things without requiring a job/build notion.
 </div>

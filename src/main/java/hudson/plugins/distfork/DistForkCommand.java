@@ -73,18 +73,6 @@ public class DistForkCommand extends CLICommand {
     @Option(name="-e",usage="Environment variables to set to the launched process",metaVar="NAME=VAL")
     public Map<String,String> envs = new HashMap<String,String>();
 
-    @Option(name="-f",usage="Local files to be copied to remote locations before the execution of a task; requires -remoting",metaVar="REMOTE=LOCAL")
-    public Map<String,String> files = new HashMap<String,String>();
-
-    @Option(name="-F",usage="Remote files to be copied back to local locations after the execution of a task; requires -remoting",metaVar="LOCAL=REMOTE")
-    public Map<String,String> returnFiles = new HashMap<String,String>();
-
-    @Option(name="-L",usage="Local to remote port forwarding; requires -remoting",handler=PortForwardingArgumentHandler.class)
-    public List<PortSpec> l2rFowrarding = new ArrayList<PortSpec>();
-
-    @Option(name="-R",usage="Remote to local port forwarding; requires -remoting",handler=PortForwardingArgumentHandler.class)
-    public List<PortSpec> r2lFowrarding = new ArrayList<PortSpec>();
-
     public String getShortDescription() {
         return "forks a process on a remote machine and connects to its stdin/stdout";
     }
@@ -93,12 +81,12 @@ public class DistForkCommand extends CLICommand {
         if(commands.isEmpty())
             throw new CmdLineException(null, "No commands are specified");
 
-        Jenkins j = Jenkins.getInstance();
+        Jenkins j = Jenkins.get();
 
         Label l = null;
         if (label!=null) {
             l = j.getLabel(label);
-            if(l.isEmpty()) {
+            if(l == null || l.isEmpty()) {
                 // TODO does this leak information about labels on nodes that some users can not see?
                 stderr.println("No such label: "+label);
                 return -1;
@@ -186,18 +174,9 @@ public class DistForkCommand extends CLICommand {
                                 workDir.untarFrom(in, TarCompression.GZIP);
                         }
 
-                        for (Entry<String, String> e : files.entrySet()) {
-                            new FilePath(checkChannel(), e.getValue()).copyToWithPermission(workDir.child(e.getKey()));
-                        }
                     }
 
                     List<Closeable> cleanUpList = new ArrayList<Closeable>();
-                    if (!l2rFowrarding.isEmpty()) {
-                        setUpPortForwarding(l2rFowrarding, checkChannel(), c.getChannel(), cleanUpList);
-                    }
-                    if (!r2lFowrarding.isEmpty()) {
-                        setUpPortForwarding(r2lFowrarding, c.getChannel(), checkChannel(), cleanUpList);
-                    }
 
                     try {
                         long startTime = c.getChannel().call(new GetSystemTime());
@@ -205,27 +184,16 @@ public class DistForkCommand extends CLICommand {
                         exitCode[0] = launcher.launch().cmds(commands)
                                 .stdin(stdin).stdout(stdout).stderr(stderr).pwd(workDir).envs(envs).join();
 
-                        if (!returnFiles.isEmpty() || returnZip!=null) {
+                        if (returnZip!=null) {
                             stderr.println("Copying back files");
-                            for (Entry<String, String> e : returnFiles.entrySet()) {
-                                FilePath tmp = new FilePath(checkChannel(), e.getKey() + ".tmp");
-                                FilePath actual = new FilePath(checkChannel(), e.getKey());
-                                workDir.child(e.getValue()).copyToWithPermission(tmp);
-                                if (actual.exists())
-                                    actual.delete();
-                                tmp.renameTo(actual);
-                            }
-
-                            if (returnZip!=null) {
-                                try (OutputStream os = new BufferedOutputStream(returnZip.matches("=(zip|tgz)") ? stdout : new FilePath(checkChannel(), returnZip).write())) {
-                                    RootCutOffFilter scanner = new RootCutOffFilter(new TimestampFilter(startTime));
-                                    if(returnZip.endsWith("zip")) {
-                                        workDir.zip(os,scanner);
-                                    } else {
-                                        workDir.tar(TarCompression.GZIP.compress(os),scanner);
-                                    }
-                                    os.flush();
+                            try (OutputStream os = new BufferedOutputStream(returnZip.matches("=(zip|tgz)") ? stdout : new FilePath(checkChannel(), returnZip).write())) {
+                                RootCutOffFilter scanner = new RootCutOffFilter(new TimestampFilter(startTime));
+                                if(returnZip.endsWith("zip")) {
+                                    workDir.zip(os,scanner);
+                                } else {
+                                    workDir.tar(TarCompression.GZIP.compress(os),scanner);
                                 }
+                                os.flush();
                             }
                         }
                     } finally {
