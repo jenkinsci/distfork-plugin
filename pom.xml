@@ -8,7 +8,7 @@
   </parent>
 
   <artifactId>distfork</artifactId>
-  <version>1.8</version>
+  <version>1.9-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <name>Jenkins Distributed Fork plugin</name>
@@ -28,7 +28,7 @@
     <connection>scm:git:https://github.com/jenkinsci/distfork-plugin.git</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/distfork-plugin.git</developerConnection>
     <url>https://github.com/jenkinsci/distfork-plugin.git</url>
-    <tag>distfork-1.8</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <dependencies>
