@@ -26,9 +26,7 @@ package hudson.plugins.distfork;
 import hudson.Functions;
 import hudson.Launcher;
 import java.io.ByteArrayOutputStream;
-import java.util.Arrays;
 import java.util.List;
-import org.apache.commons.io.input.NullInputStream;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinci.plugins.mock_slave.MockCloud;
 import org.junit.Rule;
@@ -36,11 +34,9 @@ import org.junit.Test;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 
-import hudson.cli.CLI;
 import hudson.cli.CLICommandInvoker;
 import hudson.model.Computer;
 import hudson.model.Item;
-import hudson.model.Node.Mode;
 import hudson.model.Queue;
 import hudson.model.User;
 import hudson.plugins.sshslaves.SSHLauncher;
@@ -49,7 +45,6 @@ import hudson.security.GlobalMatrixAuthorizationStrategy;
 import hudson.security.HudsonPrivateSecurityRealm;
 import hudson.slaves.Cloud;
 import hudson.slaves.DumbSlave;
-import java.io.File;
 import hudson.util.StreamTaskListener;
 import java.io.ByteArrayInputStream;
 import java.util.logging.Level;
@@ -57,11 +52,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 import jenkins.model.Jenkins;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.jenkinsci.test.acceptance.docker.fixtures.JavaContainer;
 import static org.hamcrest.Matchers.*;
-import org.jenkinsci.test.acceptance.docker.DockerRule;
 import static org.junit.Assert.*;
 import static org.junit.Assume.*;
 import org.junit.BeforeClass;
@@ -73,6 +65,8 @@ import com.cloudbees.plugins.credentials.SystemCredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardUsernameCredentials;
 import com.cloudbees.plugins.credentials.domains.Domain;
 import com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 
 public class DistForkCommandTest {
 
@@ -84,10 +78,6 @@ public class DistForkCommandTest {
 
     @Rule
     public TemporaryFolder tmp = new TemporaryFolder();
-
-    // could use DockerClassRule only if moved to another test suite
-    @Rule
-    public DockerRule<JavaContainer> docker = new DockerRule<>(JavaContainer.class);
 
     /** JENKINS_24752: otherwise {@link #testUserWithBuildAccessOnCloud} waits a long time */
     @BeforeClass
@@ -129,14 +119,14 @@ public class DistForkCommandTest {
         HudsonPrivateSecurityRealm realm = new HudsonPrivateSecurityRealm(false, false, null);
         realm.createAccount("alice","alice");
         realm.createAccount("bob","bob");
-        
+
         GlobalMatrixAuthorizationStrategy authz = new GlobalMatrixAuthorizationStrategy();
         authz.add(Computer.BUILD, "bob");
         authz.add(Jenkins.READ, "bob");
         authz.add(Jenkins.READ, Jenkins.ANONYMOUS.getName());
         jr.jenkins.setSecurityRealm(realm);
         jr.jenkins.setAuthorizationStrategy(authz);
-        
+
         String result = commandAndOutput(null, "-l", "built-in", "whoami");
         assertThat(result, containsString(new AccessDeniedException2(Jenkins.ANONYMOUS, Computer.BUILD).getMessage()));
     }
@@ -145,18 +135,18 @@ public class DistForkCommandTest {
     @Issue("SECURITY-386")
     public void testUserWithBuildAccess() throws Exception {
         // a user with Computer.BUILD should be able to run this command.
-        
+
         HudsonPrivateSecurityRealm realm = new HudsonPrivateSecurityRealm(false, false, null);
         realm.createAccount("alice","alice");
         realm.createAccount("bob","bob");
-        
+
         GlobalMatrixAuthorizationStrategy authz = new GlobalMatrixAuthorizationStrategy();
         authz.add(Computer.BUILD, "bob");
         authz.add(Jenkins.READ, "bob");
         authz.add(Jenkins.READ, Jenkins.ANONYMOUS.getName());
         jr.jenkins.setSecurityRealm(realm);
         jr.jenkins.setAuthorizationStrategy(authz);
-        
+
         String result = commandAndOutput("bob", "-l", "built-in", "whoami");
         assertThat(result, allOf( containsString("Executing on master"), containsString(whoIAM)));
     }
@@ -165,11 +155,11 @@ public class DistForkCommandTest {
     @Issue("SECURITY-386")
     public void testUserWithOutBuildAccess() throws Exception {
         // a user without Computer.BUILD should be able to run this command.
-        
+
         HudsonPrivateSecurityRealm realm = new HudsonPrivateSecurityRealm(false, false, null);
         realm.createAccount("alice","alice");
         realm.createAccount("bob","bob");
-        
+
         GlobalMatrixAuthorizationStrategy authz = new GlobalMatrixAuthorizationStrategy();
         authz.add(Computer.BUILD, "bob");
         authz.add(Jenkins.READ, "bob");
@@ -178,7 +168,7 @@ public class DistForkCommandTest {
         authz.add(Jenkins.READ, Jenkins.ANONYMOUS.getName());
         jr.jenkins.setSecurityRealm(realm);
         jr.jenkins.setAuthorizationStrategy(authz);
-        
+
         String result = commandAndOutput("alice", "-l", "built-in", "whoami");
         assertThat(result, containsString(new AccessDeniedException2(User.getById("alice", false).impersonate(), Computer.BUILD).getMessage()));
     }
@@ -189,11 +179,11 @@ public class DistForkCommandTest {
     public void testUserWithProvisionAccess() throws Exception {
         logging.record(Queue.class, Level.FINEST);
         // a user without Computer.BUILD should be able to run this command.
-        
+
         HudsonPrivateSecurityRealm realm = new HudsonPrivateSecurityRealm(false, false, null);
         realm.createAccount("alice","alice");
         realm.createAccount("bob","bob");
-        
+
         GlobalMatrixAuthorizationStrategy authz = new GlobalMatrixAuthorizationStrategy();
         //authz.add(Computer.BUILD, "bob");
         authz.add(Jenkins.READ, "bob");
@@ -211,17 +201,17 @@ public class DistForkCommandTest {
         String result = commandAndOutput("bob", "-l", "cloud", "whoami");
         assertThat(result, allOf( containsString("Executing on mock-"), containsString(whoIAM)));
     }
-    
+
     @Test
     @Issue("SECURITY-386")
     public void testUserWithBuildAccessOnCloud() throws Exception {
         logging.record(Queue.class, Level.FINEST);
         // a user without Cloud.PROVISION should be able to run this command.
-        
+
         HudsonPrivateSecurityRealm realm = new HudsonPrivateSecurityRealm(false, false, null);
         realm.createAccount("alice","alice");
         realm.createAccount("bob","bob");
-        
+
         GlobalMatrixAuthorizationStrategy authz = new GlobalMatrixAuthorizationStrategy();
         authz.add(Computer.BUILD, "bob");
         authz.add(Jenkins.READ, "bob");
@@ -231,7 +221,7 @@ public class DistForkCommandTest {
         authz.add(Jenkins.READ, Jenkins.ANONYMOUS.getName());
         jr.jenkins.setSecurityRealm(realm);
         jr.jenkins.setAuthorizationStrategy(authz);
-        
+
         MockCloud cloud = new MockCloud("");
         cloud.setLabels("cloud");
         cloud.setOneShot(true);
@@ -249,15 +239,6 @@ public class DistForkCommandTest {
         }
         CLICommandInvoker.Result result = cliInvoker.invokeWithArgs(args);
         return StringUtils.defaultString(result.stdout()) + StringUtils.defaultString(result.stderr());
-    }
-
-    private void registerSlave() throws Exception {
-        StandardUsernameCredentials credentials = new UsernamePasswordCredentialsImpl(CredentialsScope.SYSTEM, "credentialId", "description", "test", "test");
-        SystemCredentialsProvider.getInstance().getDomainCredentialsMap().put(Domain.global(), List.of(credentials));
-        JavaContainer c = docker.get();
-        DumbSlave s = new DumbSlave("docker", "/home/test/slave", new SSHLauncher(c.ipBound(22), c.port(22), credentials.getId()));
-        jr.jenkins.addNode(s);
-        jr.waitOnline(s);
     }
 
     @Issue("JENKINS-49205")
@@ -292,28 +273,41 @@ public class DistForkCommandTest {
     @Issue("JENKINS-49205")
     @Test
     public void plainCLIStdinFileTransfersSlave() throws Exception {
-        registerSlave();
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-            ZipEntry ze = new ZipEntry("a");
-            zos.putNextEntry(ze);
-            zos.write("hello ".getBytes());
-            zos.closeEntry();
-            ze = new ZipEntry("b");
-            zos.putNextEntry(ze);
-            zos.write("world".getBytes());
-            zos.closeEntry();
-        }
-        CLICommandInvoker.Result r = new CLICommandInvoker(jr, new DistForkCommand()).
-            withStdin(new ByteArrayInputStream(baos.toByteArray())).
-            invokeWithArgs("-l", "docker", "-z", "=zip", "-Z", "=zip", "sh", "-c", "sleep 1; cat a b > c; rm a b");
-        assertThat(r, CLICommandInvoker.Matcher.succeeded());
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(r.stdoutBinary()); ZipInputStream zis = new ZipInputStream(bais)) {
-            ZipEntry ze = zis.getNextEntry();
-            assertNotNull(ze);
-            assertEquals("c", ze.getName());
-            assertEquals("hello world", IOUtils.toString(zis));
-            assertNull(zis.getNextEntry());
+        // prepare container for agent
+        try (GenericContainer<?> container = new GenericContainer<>(new ImageFromDockerfile("java17-ssh", false)
+                .withFileFromClasspath("Dockerfile", DistForkCommandTest.class.getName().replace('.', '/') + "/Dockerfile"))
+                .withExposedPorts(22)) {
+            container.start();
+
+            StandardUsernameCredentials credentials = new UsernamePasswordCredentialsImpl(CredentialsScope.SYSTEM, "credentialId", "description", "test", "test");
+            SystemCredentialsProvider.getInstance().getDomainCredentialsMap().put(Domain.global(), List.of(credentials));
+
+            DumbSlave s = new DumbSlave("docker", "/home/test/slave", new SSHLauncher(container.getHost(), container.getMappedPort(22), credentials.getId()));
+            jr.jenkins.addNode(s);
+            jr.waitOnline(s);
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+                ZipEntry ze = new ZipEntry("a");
+                zos.putNextEntry(ze);
+                zos.write("hello ".getBytes());
+                zos.closeEntry();
+                ze = new ZipEntry("b");
+                zos.putNextEntry(ze);
+                zos.write("world".getBytes());
+                zos.closeEntry();
+            }
+            CLICommandInvoker.Result r = new CLICommandInvoker(jr, new DistForkCommand()).
+                withStdin(new ByteArrayInputStream(baos.toByteArray())).
+                invokeWithArgs("-l", "docker", "-z", "=zip", "-Z", "=zip", "sh", "-c", "sleep 1; cat a b > c; rm a b");
+            assertThat(r, CLICommandInvoker.Matcher.succeeded());
+            try (ByteArrayInputStream bais = new ByteArrayInputStream(r.stdoutBinary()); ZipInputStream zis = new ZipInputStream(bais)) {
+                ZipEntry ze = zis.getNextEntry();
+                assertNotNull(ze);
+                assertEquals("c", ze.getName());
+                assertEquals("hello world", IOUtils.toString(zis));
+                assertNull(zis.getNextEntry());
+            }
         }
     }
 
